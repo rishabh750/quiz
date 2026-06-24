@@ -1,0 +1,22 @@
+Build me a simple react js + vite app
+the web app should be a single page application
+the code should be minimalistic but the UI should support light and dark mode, toggled from a button on the top right corner
+there should be a folder named course
+to start with lets say this folder has a csv file named java-beginner.txt
+the csv is expected to have mcq questions related to the topic as the file name with the following columns
+section, question number, question, option 1, option 2, option 3, option 4, correct option number
+default value of section is main, ie if the section column does not exists consider it "main" and put all questions in that section
+there should be another folder named answers
+this folder will have csvs populated live as the user answers the questions with the following columns§
+question number, candidate answer, marks
+marks column should be 1 if correct answer as per the questions txt file or else 0
+the app should have a left navbar with a list of all the courses in the courses folder
+if I add a new file there and refresh the page, it should automatically load the new course on the left navbar
+add a reset button in front of each module in the left navbar to delete the corresponding answers file and thus reset the attempts for that course
+add a toggle button in front of each module in the left navbar to render notes instead of questions in form of md file with the same name as the questions
+header navbar should show the current score based on the answers txt file
+this should have attempted out of total and correct out of attempted with a correct percentage
+the questions should be rendered in a section wise collapsable widget with each widget/section having it's individual score similar to total quiz score
+each section should have it's own reset button in the widget header
+widget header should stay on the top of the screen of the current section
+create a add button on top navbar that uploads the notes and quiz files to the course folder
