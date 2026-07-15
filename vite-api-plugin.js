@@ -3,8 +3,6 @@ import apiModule from './server/api.cjs'
 
 const { createApiHandler } = apiModule
 
-// Serves the quiz /api routes from the Vite dev server using the same handler
-// that the packaged Electron app uses (see electron/main.js).
 export default function quizApiPlugin() {
   return {
     name: 'quiz-api',

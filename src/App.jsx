@@ -28,19 +28,19 @@ export default function App() {
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light')
   const [courses, setCourses] = useState([])
   const [active, setActive] = useState(null)
-  const [view, setView] = useState('quiz') // 'quiz' | 'notes'
+  const [view, setView] = useState('quiz')
   const [questions, setQuestions] = useState([])
   const [answers, setAnswers] = useState([])
   const [notes, setNotes] = useState({ exists: false, content: '' })
   const [loading, setLoading] = useState(false)
-  const [archive, setArchive] = useState(null) // null = modal closed; array = open
+  const [archive, setArchive] = useState(null)
+  const [navOpen, setNavOpen] = useState(false)
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
     localStorage.setItem('theme', theme)
   }, [theme])
 
-  // Load the course list on mount (and thus on every page refresh).
   useEffect(() => {
     getCourses().then((list) => {
       setCourses(list)
@@ -48,7 +48,6 @@ export default function App() {
     })
   }, [])
 
-  // Load questions + saved answers + notes whenever the active course changes.
   useEffect(() => {
     if (!active) return
     setLoading(true)
@@ -66,9 +65,9 @@ export default function App() {
   const handleSelect = useCallback((course) => {
     setActive(course)
     setView('quiz')
+    setNavOpen(false)
   }, [])
 
-  // Reset all attempts for a course (module-level reset in the navbar).
   const handleReset = useCallback(
     async (course) => {
       if (!window.confirm(`Reset all attempts for "${course}"?`)) return
@@ -78,7 +77,6 @@ export default function App() {
     [active]
   )
 
-  // Reset only one section's attempts (called from a section widget header).
   const handleResetSection = useCallback(
     async (questionNumbers) => {
       const remaining = await resetAnswers(active, questionNumbers)
@@ -87,7 +85,6 @@ export default function App() {
     [active]
   )
 
-  // Delete a course: clear its answers and move quiz + notes to the archive.
   const handleArchive = useCallback(
     async (course) => {
       if (
@@ -112,7 +109,6 @@ export default function App() {
     setArchive(await getArchive())
   }, [])
 
-  // Revive an archived course back into the course folder.
   const handleRevive = useCallback(async (course) => {
     const { archive: remaining } = await reviveCourse(course)
     setArchive(remaining)
@@ -121,8 +117,6 @@ export default function App() {
     setActive((cur) => cur ?? list[0] ?? null)
   }, [])
 
-  // Save {filename, content} files into the course folder, then refresh the
-  // navbar and open the first newly added quiz.
   const saveFiles = useCallback(async (files) => {
     let firstQuiz = null
     for (const f of files) {
@@ -139,7 +133,6 @@ export default function App() {
     }
   }, [])
 
-  // Upload picked files from disk (read their text, then save them).
   const handleUpload = useCallback(
     async (fileObjects) => {
       const files = await Promise.all(
@@ -153,7 +146,14 @@ export default function App() {
     [saveFiles]
   )
 
-  // Notes toggle: switch to a course's notes, or flip back to its quiz.
+  const handleRegenerateNotes = useCallback(
+    async (content) => {
+      await uploadCourseFile(active + '.md', content)
+      setNotes({ exists: true, content })
+    },
+    [active]
+  )
+
   const handleToggleView = useCallback(
     (course) => {
       if (course !== active) {
@@ -167,17 +167,19 @@ export default function App() {
   )
 
   return (
-    <div className="app">
+    <div className={'app' + (navOpen ? ' nav-open' : '')}>
       <Sidebar
         courses={courses}
         active={active}
         view={view}
+        open={navOpen}
         onSelect={handleSelect}
         onToggleView={handleToggleView}
         onReset={handleReset}
         onArchive={handleArchive}
         onOpenArchive={openArchive}
       />
+      <div className="nav-backdrop" onClick={() => setNavOpen(false)} />
       <main className="main">
         <Header
           course={active}
@@ -187,14 +189,23 @@ export default function App() {
           onToggleTheme={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}
           onUpload={handleUpload}
           onGenerated={saveFiles}
+          onToggleNav={() => setNavOpen((o) => !o)}
         />
         <section className="content">
           {!active ? (
-            <p className="muted">No courses found. Add a .txt file to the <code>course</code> folder and refresh.</p>
+            <p className="muted">
+              No courses yet. Tap <strong>✨ Generate</strong> to create one, or{' '}
+              <strong>+ Add</strong> to import a <code>.txt</code> quiz file.
+            </p>
           ) : loading ? (
             <p className="muted">Loading…</p>
           ) : view === 'notes' ? (
-            <Notes notes={notes} course={active} />
+            <Notes
+              notes={notes}
+              course={active}
+              questions={questions}
+              onRegenerated={handleRegenerateNotes}
+            />
           ) : (
             <Quiz
               course={active}

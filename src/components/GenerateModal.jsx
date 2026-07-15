@@ -1,15 +1,30 @@
 import { useState } from 'react'
 
-export default function GenerateModal({ hasKey, onGenerate, onSetKey, onClose }) {
+export default function GenerateModal({ hasKey, providerLabel, onGenerate, onSetKey, onClose }) {
+  const [searchMode, setSearchMode] = useState('generic')
   const [topics, setTopics] = useState('')
+  const [company, setCompany] = useState('')
+  const [position, setPosition] = useState('')
+  const [round, setRound] = useState('')
   const [count, setCount] = useState(100)
   const [difficulty, setDifficulty] = useState('medium')
+  const [mcq, setMcq] = useState(true)
+
+  const specific = searchMode === 'specific'
+  const ready = specific ? company.trim() && position.trim() && round.trim() : topics.trim()
 
   const submit = (e) => {
     e.preventDefault()
-    const t = topics.trim()
-    if (!t) return
-    onGenerate({ topics: t, count: Number(count) || 100, difficulty })
+    if (!ready) return
+    const common = { count: Number(count) || 100, difficulty, mcq }
+    if (specific) {
+      const c = company.trim()
+      const p = position.trim()
+      const r = round.trim()
+      onGenerate({ ...common, mode: 'specific', company: c, position: p, round: r, topics: `${c} ${p} ${r}` })
+    } else {
+      onGenerate({ ...common, mode: 'generic', topics: topics.trim() })
+    }
   }
 
   return (
@@ -19,7 +34,7 @@ export default function GenerateModal({ hasKey, onGenerate, onSetKey, onClose })
 
         {!hasKey && (
           <p className="muted small">
-            Set your Gemini API key first.{' '}
+            Set your {providerLabel} API key first.{' '}
             <button className="link-btn" type="button" onClick={onSetKey}>
               Set API key
             </button>
@@ -27,20 +42,106 @@ export default function GenerateModal({ hasKey, onGenerate, onSetKey, onClose })
         )}
 
         <form onSubmit={submit}>
-          <label className="field">
-            <span className="field-label">Tags / topics (comma-separated)</span>
-            <input
-              className="topic-input"
-              type="text"
-              placeholder="e.g. React, Testing"
-              value={topics}
-              autoFocus
-              onChange={(e) => setTopics(e.target.value)}
-            />
+          <div className="field">
+            <span className="field-label">Search mode</span>
+            <div className="segmented">
+              <button
+                type="button"
+                className={'seg' + (!specific ? ' active' : '')}
+                onClick={() => setSearchMode('generic')}
+              >
+                Generic
+              </button>
+              <button
+                type="button"
+                className={'seg' + (specific ? ' active' : '')}
+                onClick={() => setSearchMode('specific')}
+              >
+                Specific
+              </button>
+            </div>
+          </div>
+
+          {specific ? (
+            <>
+              <label className="field">
+                <span className="field-label">Company name</span>
+                <input
+                  className="topic-input"
+                  type="text"
+                  placeholder="e.g. Google"
+                  value={company}
+                  autoFocus
+                  onChange={(e) => setCompany(e.target.value)}
+                />
+              </label>
+              <div className="field-row">
+                <label className="field">
+                  <span className="field-label">Position</span>
+                  <input
+                    className="topic-input"
+                    type="text"
+                    placeholder="e.g. Backend Engineer"
+                    value={position}
+                    onChange={(e) => setPosition(e.target.value)}
+                  />
+                </label>
+                <label className="field">
+                  <span className="field-label">Interview round</span>
+                  <input
+                    className="topic-input"
+                    type="text"
+                    placeholder="e.g. System Design"
+                    value={round}
+                    onChange={(e) => setRound(e.target.value)}
+                  />
+                </label>
+              </div>
+              <span className="field-hint">
+                Questions tailored to that company's specific interview round.
+              </span>
+            </>
+          ) : (
+            <label className="field">
+              <span className="field-label">Tags / topics (comma-separated)</span>
+              <input
+                className="topic-input"
+                type="text"
+                placeholder="e.g. React, Testing"
+                value={topics}
+                autoFocus
+                onChange={(e) => setTopics(e.target.value)}
+              />
+              <span className="field-hint">
+                Multiple tags → questions at their intersection. Any subject; focus is interview prep.
+              </span>
+            </label>
+          )}
+
+          <div className="field">
+            <span className="field-label">Question type</span>
+            <div className="segmented">
+              <button
+                type="button"
+                className={'seg' + (mcq ? ' active' : '')}
+                onClick={() => setMcq(true)}
+              >
+                MCQ
+              </button>
+              <button
+                type="button"
+                className={'seg' + (!mcq ? ' active' : '')}
+                onClick={() => setMcq(false)}
+              >
+                Non-MCQ
+              </button>
+            </div>
             <span className="field-hint">
-              Multiple tags → questions at their intersection. Any subject; focus is interview prep.
+              {mcq
+                ? 'Four options with one correct answer.'
+                : 'Open-ended questions with a model answer to self-assess against.'}
             </span>
-          </label>
+          </div>
 
           <div className="field-row">
             <label className="field">
@@ -73,7 +174,7 @@ export default function GenerateModal({ hasKey, onGenerate, onSetKey, onClose })
             <button className="gen-btn" type="button" onClick={onClose}>
               Cancel
             </button>
-            <button className="add-btn" type="submit" disabled={!topics.trim() || !hasKey}>
+            <button className="add-btn" type="submit" disabled={!ready || !hasKey}>
               Generate
             </button>
           </div>

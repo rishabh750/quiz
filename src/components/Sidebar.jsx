@@ -2,6 +2,7 @@ export default function Sidebar({
   courses,
   active,
   view,
+  open,
   onSelect,
   onToggleView,
   onReset,
@@ -9,8 +10,8 @@ export default function Sidebar({
   onOpenArchive,
 }) {
   return (
-    <aside className="sidebar">
-      <h1 className="brand">Courses</h1>
+    <aside className={'sidebar' + (open ? ' open' : '')}>
+      <h1 className="brand">InterviewPrep</h1>
       <nav className="course-list">
         {courses.length === 0 && <p className="muted small">No courses yet</p>}
         <ul>

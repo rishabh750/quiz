@@ -1,25 +1,35 @@
 import { useRef, useState } from 'react'
 import { generateCourse } from '../gemini.js'
+import { openExternal } from '../openExternal.js'
+import { PROVIDERS, PROVIDER_IDS, getProvider, setProvider, getKey, setKey } from '../providers.js'
 import GenerateModal from './GenerateModal.jsx'
 
-const KEY_STORAGE = 'geminiApiKey'
-const AI_STUDIO_URL = 'https://aistudio.google.com/apikey'
-
-export default function Header({ course, total, answers, theme, onToggleTheme, onUpload, onGenerated }) {
+export default function Header({
+  course,
+  total,
+  answers,
+  theme,
+  onToggleTheme,
+  onUpload,
+  onGenerated,
+  onToggleNav,
+}) {
   const fileRef = useRef(null)
   const [busy, setBusy] = useState(false)
-  const [status, setStatus] = useState(null) // { type: 'info'|'error', text }
+  const [status, setStatus] = useState(null)
   const [generating, setGenerating] = useState(false)
   const [progress, setProgress] = useState({ chars: 0, secs: 0 })
   const timerRef = useRef(null)
   const [showGen, setShowGen] = useState(false)
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem(KEY_STORAGE) || '')
+  const [provider, setProviderState] = useState(getProvider())
+  const [apiKey, setApiKeyState] = useState(() => getKey(getProvider()))
   const [showKey, setShowKey] = useState(false)
   const [keyDraft, setKeyDraft] = useState('')
 
   const attempted = answers.length
   const correct = answers.reduce((sum, a) => sum + (Number(a.marks) || 0), 0)
   const pct = attempted > 0 ? Math.round((correct / attempted) * 100) : 0
+  const providerLabel = PROVIDERS[provider].label
 
   const flash = (type, text, ms = 3500) => {
     setStatus({ type, text })
@@ -38,17 +48,31 @@ export default function Header({ course, total, answers, theme, onToggleTheme, o
     }
   }
 
-  // Open the key modal AND the default browser to sign in to AI Studio so the
-  // user can grab/create a key.
   const openKeyModal = () => {
-    setKeyDraft(apiKey)
+    setKeyDraft(getKey(provider))
     setShowKey(true)
-    window.open(AI_STUDIO_URL, '_blank', 'noopener')
+    openExternal(PROVIDERS[provider].keyUrl)
+  }
+
+  const chooseProvider = (p) => {
+    setProviderState(p)
+    setProvider(p)
+    setApiKeyState(getKey(p))
+    setKeyDraft(getKey(p))
+    openExternal(PROVIDERS[p].keyUrl)
+  }
+
+  const saveKey = () => {
+    const k = keyDraft.trim()
+    setKey(provider, k)
+    setApiKeyState(k)
+    setShowKey(false)
   }
 
   const handleGenerate = async (params) => {
     if (generating) return
-    if (!apiKey) {
+    const key = getKey(provider)
+    if (!key) {
       openKeyModal()
       return
     }
@@ -61,7 +85,7 @@ export default function Header({ course, total, answers, theme, onToggleTheme, o
       setProgress((p) => ({ ...p, secs: Math.round((Date.now() - start) / 1000) }))
     }, 250)
     try {
-      const files = await generateCourse(params, apiKey, (chars) =>
+      const files = await generateCourse(params, { provider, apiKey: key }, (chars) =>
         setProgress((p) => ({ ...p, chars }))
       )
       await onGenerated(files)
@@ -74,18 +98,13 @@ export default function Header({ course, total, answers, theme, onToggleTheme, o
     }
   }
 
-  const saveKey = () => {
-    const k = keyDraft.trim()
-    setApiKey(k)
-    if (k) localStorage.setItem(KEY_STORAGE, k)
-    else localStorage.removeItem(KEY_STORAGE)
-    setShowKey(false)
-  }
-
   return (
     <>
       <header className="header">
-        <div className="header-title">{course || 'Quiz'}</div>
+        <button className="nav-toggle" onClick={onToggleNav} title="Menu" aria-label="Toggle menu">
+          ☰
+        </button>
+        <div className="header-title">{course || 'InterviewPrep'}</div>
 
         <div className="header-center">
           <button className="add-btn gen-cta" onClick={() => setShowGen(true)} disabled={generating}>
@@ -94,7 +113,7 @@ export default function Header({ course, total, answers, theme, onToggleTheme, o
           <button
             type="button"
             className={'icon-btn key-btn' + (apiKey ? ' on' : '')}
-            title={apiKey ? 'Gemini API key set — click to change' : 'Set Gemini API key'}
+            title={apiKey ? `${providerLabel} key set — click to change` : `Set ${providerLabel} API key`}
             onClick={openKeyModal}
           >
             {apiKey ? '🔑' : '🔓'}
@@ -135,8 +154,8 @@ export default function Header({ course, total, answers, theme, onToggleTheme, o
           </div>
           <span className="genbar-text">
             {progress.chars > 0
-              ? `Receiving from Gemini… ${progress.chars.toLocaleString()} chars · ${progress.secs}s`
-              : `Contacting Gemini… ${progress.secs}s`}
+              ? `Receiving from ${providerLabel}… ${progress.chars.toLocaleString()} chars · ${progress.secs}s`
+              : `Contacting ${providerLabel}… ${progress.secs}s`}
           </span>
         </div>
       )}
@@ -146,6 +165,7 @@ export default function Header({ course, total, answers, theme, onToggleTheme, o
       {showGen && (
         <GenerateModal
           hasKey={!!apiKey}
+          providerLabel={providerLabel}
           onGenerate={handleGenerate}
           onSetKey={openKeyModal}
           onClose={() => setShowGen(false)}
@@ -155,11 +175,23 @@ export default function Header({ course, total, answers, theme, onToggleTheme, o
       {showKey && (
         <div className="modal-overlay" onClick={() => setShowKey(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Gemini API key</h2>
+            <h2>API key</h2>
+            <div className="segmented">
+              {PROVIDER_IDS.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  className={'seg' + (p === provider ? ' active' : '')}
+                  onClick={() => chooseProvider(p)}
+                >
+                  {PROVIDERS[p].label}
+                </button>
+              ))}
+            </div>
             <p className="muted small">
               Opened{' '}
-              <a href={AI_STUDIO_URL} target="_blank" rel="noreferrer">
-                aistudio.google.com/apikey
+              <a href={PROVIDERS[provider].keyUrl} target="_blank" rel="noreferrer">
+                {PROVIDERS[provider].label} key page
               </a>{' '}
               in your browser — sign in, create a key, and paste it here. Stored only in this
               browser (localStorage).
@@ -167,7 +199,7 @@ export default function Header({ course, total, answers, theme, onToggleTheme, o
             <input
               className="topic-input key-input"
               type="password"
-              placeholder="Paste your Gemini API key"
+              placeholder={`Paste your ${providerLabel} API key`}
               value={keyDraft}
               autoFocus
               onChange={(e) => setKeyDraft(e.target.value)}

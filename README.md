@@ -1,14 +1,20 @@
-# Quiz
+# InterviewPrep
 
-A minimalistic React + Vite quiz app with light/dark mode, section-based quizzes,
-markdown notes, and one-click quiz/notes generation via the Gemini API. It runs
-either in the browser (Vite dev server) or as a packaged desktop app (Electron).
+A minimalistic, responsive React + Vite study app with light/dark mode,
+section-based quizzes (MCQ **and** open-ended / non-MCQ), markdown notes, and
+one-click quiz/notes generation via your choice of **Gemini, Claude, or ChatGPT**.
+
+**Fully client-side.** All data lives in the visitor's own browser
+(`localStorage`) and the AI request goes **straight from their browser to the
+provider** — nothing is stored on or routed through the host. That means it
+deploys as a plain static site, and each visitor's courses, answers, and API key
+stay private to their browser.
 
 ## Prerequisites
 
 - **Node.js 18+** (Node 22 recommended) and npm.
-- To build desktop executables: the Electron toolchain (installed automatically
-  by `npm install`).
+- Building desktop executables also needs the Electron toolchain (installed by
+  `npm install`).
 
 ```bash
 npm install
@@ -20,9 +26,31 @@ npm install
 npm run dev
 ```
 
-Open the printed URL (default http://localhost:5173). File reads/writes are served
-by a small Vite dev-server middleware ([vite-api-plugin.js](vite-api-plugin.js))
-that shares its logic with the desktop build ([server/api.js](server/api.js)).
+Open the printed URL (default http://localhost:5173).
+
+## Host it (static site)
+
+```bash
+npm run build      # outputs a static site to dist/
+```
+
+Deploy the `dist/` folder to any static host (Netlify, Vercel, GitHub Pages, S3,
+Cloudflare Pages, …). No server, database, or secrets to manage — the app is HTML
++ JS + CSS. Serve it over **HTTPS** (required for the browser→provider calls and
+for `localStorage` to persist reliably).
+
+### Privacy / security model
+
+- **API keys** are stored only in the visitor's `localStorage` and sent
+  **directly to the chosen AI provider** — they never reach your host. You never
+  see or store anyone's key.
+- **Courses, answers, and the archive** are stored only in the visitor's
+  `localStorage` — per-browser, never uploaded.
+- Because the browser calls the provider directly, the provider must allow
+  cross-origin (CORS) browser requests: **Gemini** and **Claude** do (Claude via
+  the `anthropic-dangerous-direct-browser-access` header, already sent).
+  **OpenAI/ChatGPT** may block direct browser calls depending on account/region;
+  if a user hits a CORS error with ChatGPT, they should use Gemini or Claude.
 
 ## Build desktop executables
 
@@ -70,50 +98,81 @@ Each run first builds the frontend (`vite build`) and then packages it with
 - For reliable multi-platform artifacts, run the matching `npm run dist <os>` on a
   CI runner for each OS (e.g. GitHub Actions `macos-latest` / `windows-latest`).
 
+## Choosing an LLM provider
+
+Generation works with **Gemini**, **Claude**, or **ChatGPT**. Open the key modal
+(🔑 in the top bar), pick a provider — its API-key page opens in your default
+browser — then paste the key. Keys are stored per-provider in `localStorage` and
+sent **directly from the browser to that provider**.
+
+| Provider | Key page                              |
+|----------|---------------------------------------|
+| Gemini   | aistudio.google.com/apikey            |
+| Claude   | console.anthropic.com/settings/keys   |
+| ChatGPT  | platform.openai.com/api-keys          |
+
 ## Where your data lives
 
-| Folder      | Contents                                                            |
-|-------------|---------------------------------------------------------------------|
-| `course/`   | One `<name>.txt` per quiz (CSV) and an optional `<name>.md` notes file. |
-| `answers/`  | `<name>.csv` written live as you answer (`question number, candidate answer, marks`). |
-| `archive/`  | Deleted courses (quiz + notes) — revived from the in-app Archive modal. |
+Everything is kept in the browser's `localStorage` — nothing is uploaded:
 
-- **Dev / running from source:** these folders live in the project root.
-- **Packaged app:** they live in the per-user app-data folder. Use the
-  **Course → Open Course Folder / Open Answers Folder** menu items to reveal them.
-  On first launch the bundled sample course is copied in automatically.
+| Key           | Contents                                                          |
+|---------------|------------------------------------------------------------------|
+| `ip_courses`  | Each course's quiz (`.txt` content) and optional notes (`.md`).  |
+| `ip_answers`  | Your attempts per course (`question number, candidate answer, marks`). |
+| `ip_archive`  | Deleted courses (quiz + notes) — revived from the Archive modal. |
+| `llmKeys` / `llmProvider` | Your per-provider API keys and the selected provider. |
 
-### Quiz CSV format
+Clearing the browser's site data (or using a different browser/device) starts
+fresh. Use **+ Add** to import `.txt`/`.md` files, or **✨ Generate** to create
+courses. The app ships with no example content.
 
-First row is the header; the `section` column is optional (defaults to `main`):
+### Quiz file format
+
+Fields are separated by `$$$` (so commas/quotes in text need no escaping); older
+comma-separated files still parse. The first row is the header, and the `section`
+column is optional (defaults to `main`). Two question types are supported,
+detected from the header:
+
+**MCQ** (has `option`/`correct option number` columns):
 
 ```
-section,question number,question,option 1,option 2,option 3,option 4,correct option number
-Basics,1,Which keyword defines a class in Java?,class,struct,define,object,1
+section$$$question number$$$question$$$option 1$$$option 2$$$option 3$$$option 4$$$correct option number
+Basics$$$1$$$Which keyword defines a class in Java?$$$class$$$struct$$$define$$$object$$$1
 ```
 
-`marks` in the answers file is `1` if the chosen option equals the correct option
-number, else `0`.
+**Non-MCQ / open-ended** (has an `answer` column, no options):
+
+```
+section$$$question number$$$question$$$answer
+Core$$$1$$$Explain the virtual DOM.$$$A lightweight in-memory tree React diffs to compute minimal real-DOM updates.
+```
+
+For MCQ, `marks` is `1` when the chosen option matches the correct one. For
+non-MCQ you reveal the model answer and self-assess ("I knew this" / "Need
+review"), which records `marks` `1`/`0` so section and overall scores still work.
 
 ## Features
 
-- Left navbar lists every course; **add a `.txt` and refresh** to load it.
+- Left navbar lists every course; **add a `.txt` and refresh** to load it. On
+  narrow screens the navbar collapses into a ☰ drawer.
 - Per-course buttons: **notes toggle** (📝), **reset attempts** (↺), **delete → archive** (🗑).
 - Section-wise collapsible widgets with per-section scores; sticky section headers.
 - Header shows the live overall score and a light/dark toggle.
 - **+ Add** uploads `.txt`/`.md` files into the course folder.
-- **Topic search → Generate:** enter comma-separated topics; the app calls the
-  Gemini API (key entered in-app, stored in `localStorage`) and saves a generated
-  100-question quiz + notes, with a live streaming status bar. Get a free key at
-  [aistudio.google.com/apikey](https://aistudio.google.com/apikey).
+- **✨ Generate** opens a modal (tags, question count, difficulty, **MCQ / Non-MCQ**
+  toggle); the app calls your chosen provider (Gemini / Claude / ChatGPT) and saves
+  a generated quiz + notes with a live streaming status bar.
+- **🔄 Refresh notes** on the notes page regenerates just the notes, grounded in
+  the course's questions.
 
 ## Project layout
 
 ```
 course/               sample + generated quizzes and notes
-server/api.cjs        shared filesystem + Gemini-proxy request handler (CommonJS)
-vite-api-plugin.js    serves the API in the Vite dev server
-electron/main.cjs     desktop shell: localhost server + window + menus (CommonJS)
-scripts/build.mjs     platform-arg build/packaging script
-src/                  React app (components, api client, prompt builder)
+server/api.cjs        Node backend: filesystem + LLM proxy (Gemini/Claude/ChatGPT)
+vite-api-plugin.js    serves the Node API in the Vite dev server
+electron/main.cjs     desktop shell: localhost server + window + menus
+scripts/build.mjs     platform-arg desktop build/packaging script
+src/providers.js      provider metadata + per-provider key storage
+src/                  React app (components, prompt builder, LLM client)
 ```

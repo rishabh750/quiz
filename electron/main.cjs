@@ -4,11 +4,9 @@ const fs = require('node:fs')
 const path = require('node:path')
 const { createApiHandler } = require('../server/api.cjs')
 
-// Where the built frontend lives (bundled inside the app).
 const distDir = path.join(app.getAppPath(), 'dist')
+const PORT = 43117
 
-// Course/answers/archive live in a writable, user-visible location. In a
-// packaged app that's the per-user data folder; in dev it's the project root.
 const dataDir = app.isPackaged ? app.getPath('userData') : path.join(__dirname, '..')
 const courseDir = path.join(dataDir, 'course')
 const answersDir = path.join(dataDir, 'answers')
@@ -20,11 +18,9 @@ function logError(err) {
   try {
     fs.appendFileSync(logFile, `[${new Date().toISOString()}] ${err && err.stack ? err.stack : err}\n`)
   } catch {
-    // ignore logging failures
   }
 }
 
-// On first launch, seed the course folder with the bundled sample files.
 function seedCourses() {
   if (fs.existsSync(courseDir)) return
   fs.mkdirSync(courseDir, { recursive: true })
@@ -53,7 +49,6 @@ const MIME = {
 function serveStatic(req, res) {
   const pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname)
   let filePath = path.join(distDir, pathname)
-  // SPA fallback: anything without a real file extension serves index.html.
   if (!path.extname(filePath) || !fs.existsSync(filePath)) {
     filePath = path.join(distDir, 'index.html')
   }
@@ -83,7 +78,7 @@ function startServer() {
   })
   return new Promise((resolve, reject) => {
     server.on('error', reject)
-    server.listen(0, '127.0.0.1', () => resolve(server.address().port))
+    server.listen(PORT, '127.0.0.1', () => resolve(server.address().port))
   })
 }
 
@@ -117,18 +112,14 @@ function buildMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
 }
 
-// Always create a window so the user sees something; load the app once the
-// server is up, or an inline error page if startup fails.
 async function createWindow() {
   const win = new BrowserWindow({
     width: 1100,
     height: 800,
-    title: 'Quiz',
+    title: 'InterviewPrep',
     webPreferences: { contextIsolation: true, nodeIntegration: false },
   })
 
-  // Open external links (e.g. the AI Studio sign-in) in the system default
-  // browser instead of a new Electron window.
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:/.test(url)) {
       shell.openExternal(url)
@@ -146,7 +137,7 @@ async function createWindow() {
       'data:text/html,' +
         encodeURIComponent(
           `<body style="font-family:sans-serif;padding:24px">
-             <h1>Quiz failed to start</h1>
+             <h1>InterviewPrep failed to start</h1>
              <p>Details were written to:<br><code>${logFile}</code></p>
              <pre style="white-space:pre-wrap;color:#b00">${msg}</pre>
            </body>`
@@ -162,14 +153,13 @@ app.whenReady().then(async () => {
     await createWindow()
   } catch (err) {
     logError(err)
-    dialog.showErrorBox('Quiz failed to start', String(err && err.stack ? err.stack : err))
+    dialog.showErrorBox('InterviewPrep failed to start', String(err && err.stack ? err.stack : err))
   }
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })
 
-// Surface any otherwise-silent crashes.
 process.on('uncaughtException', (err) => {
   logError(err)
 })

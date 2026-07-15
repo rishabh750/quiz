@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
 import { saveAnswer } from '../api.js'
 
-// Compute attempted / total / correct / percentage for a set of questions.
 function sectionScore(questions, answered) {
   const total = questions.length
   let attempted = 0
@@ -20,15 +19,14 @@ function sectionScore(questions, answered) {
 export default function Quiz({ course, questions, answers, onAnswered, onResetSection }) {
   const [saving, setSaving] = useState(null)
   const [collapsed, setCollapsed] = useState({})
+  const [revealed, setRevealed] = useState({})
 
-  // Map question number -> saved answer for quick lookup.
   const answered = useMemo(() => {
     const m = {}
     for (const a of answers) m[a.questionNumber] = a
     return m
   }, [answers])
 
-  // Group questions by section, preserving first-seen order.
   const sections = useMemo(() => {
     const map = new Map()
     for (const q of questions) {
@@ -39,23 +37,78 @@ export default function Quiz({ course, questions, answers, onAnswered, onResetSe
     return [...map.entries()]
   }, [questions])
 
-  const handleSelect = async (q, optionNumber) => {
-    if (answered[q.questionNumber]) return // already answered, lock it
+  const save = async (q, candidateAnswer, marks) => {
+    if (answered[q.questionNumber]) return
     setSaving(q.questionNumber)
-    const marks = optionNumber === q.correctOption ? 1 : 0
     try {
-      const updated = await saveAnswer(course, {
-        questionNumber: q.questionNumber,
-        candidateAnswer: optionNumber,
-        marks,
-      })
+      const updated = await saveAnswer(course, { questionNumber: q.questionNumber, candidateAnswer, marks })
       onAnswered(updated)
     } finally {
       setSaving(null)
     }
   }
 
+  const handleSelect = (q, optionNumber) => save(q, optionNumber, optionNumber === q.correctOption ? 1 : 0)
+  const handleSelfAssess = (q, gotIt) => save(q, gotIt ? 'knew' : 'review', gotIt ? 1 : 0)
+
   if (questions.length === 0) return <p className="muted">This course has no questions.</p>
+
+  const renderMcq = (q, saved) => {
+    const chosen = saved ? Number(saved.candidateAnswer) : null
+    return (
+      <div className="options">
+        {q.options.map((opt, i) => {
+          const optNum = i + 1
+          const isChosen = chosen === optNum
+          const isCorrect = q.correctOption === optNum
+          let cls = 'option'
+          if (saved) {
+            if (isCorrect) cls += ' correct'
+            else if (isChosen) cls += ' incorrect'
+          }
+          return (
+            <button
+              key={optNum}
+              className={cls}
+              disabled={!!saved || saving === q.questionNumber}
+              onClick={() => handleSelect(q, optNum)}
+            >
+              <span className="opt-label">{optNum}</span>
+              {opt}
+            </button>
+          )
+        })}
+      </div>
+    )
+  }
+
+  const renderQa = (q, saved) => {
+    const isRevealed = saved || revealed[q.questionNumber]
+    return (
+      <div className="qa">
+        {!isRevealed ? (
+          <button className="gen-btn" onClick={() => setRevealed((r) => ({ ...r, [q.questionNumber]: true }))}>
+            Show answer
+          </button>
+        ) : (
+          <>
+            <div className="qa-answer">{q.answer}</div>
+            {!saved && (
+              <div className="qa-assess">
+                <span className="muted small">How did you do?</span>
+                <button className="option correct" onClick={() => handleSelfAssess(q, true)}>
+                  I knew this
+                </button>
+                <button className="option incorrect" onClick={() => handleSelfAssess(q, false)}>
+                  Need review
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="quiz">
@@ -100,41 +153,19 @@ export default function Quiz({ course, questions, answers, onAnswered, onResetSe
               <div className="section-body">
                 {items.map((q) => {
                   const saved = answered[q.questionNumber]
-                  const chosen = saved ? Number(saved.candidateAnswer) : null
+                  const isQa = q.type === 'qa'
                   return (
                     <div className="card" key={q.questionNumber}>
                       <div className="q-head">
                         <span className="q-num">Q{q.questionNumber}</span>
                         {saved && (
                           <span className={'badge ' + (saved.marks ? 'ok' : 'bad')}>
-                            {saved.marks ? 'Correct' : 'Wrong'}
+                            {isQa ? (saved.marks ? 'Knew it' : 'Review') : saved.marks ? 'Correct' : 'Wrong'}
                           </span>
                         )}
                       </div>
                       <p className="q-text">{q.question}</p>
-                      <div className="options">
-                        {q.options.map((opt, i) => {
-                          const optNum = i + 1
-                          const isChosen = chosen === optNum
-                          const isCorrect = q.correctOption === optNum
-                          let cls = 'option'
-                          if (saved) {
-                            if (isCorrect) cls += ' correct'
-                            else if (isChosen) cls += ' incorrect'
-                          }
-                          return (
-                            <button
-                              key={optNum}
-                              className={cls}
-                              disabled={!!saved || saving === q.questionNumber}
-                              onClick={() => handleSelect(q, optNum)}
-                            >
-                              <span className="opt-label">{optNum}</span>
-                              {opt}
-                            </button>
-                          )
-                        })}
-                      </div>
+                      {isQa ? renderQa(q, saved) : renderMcq(q, saved)}
                     </div>
                   )
                 })}

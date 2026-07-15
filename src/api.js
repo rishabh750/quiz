@@ -1,46 +1,120 @@
-const json = (r) => {
-  if (!r.ok) throw new Error('request failed: ' + r.status)
-  return r.json()
+import { parseQuestions } from './lib/quizFormat.js'
+
+const COURSES_KEY = 'ip_courses'
+const ANSWERS_KEY = 'ip_answers'
+const ARCHIVE_KEY = 'ip_archive'
+
+function load(key) {
+  try {
+    return JSON.parse(localStorage.getItem(key)) || {}
+  } catch {
+    return {}
+  }
 }
 
-export const getCourses = () => fetch('/api/courses').then(json)
+function save(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value))
+  } catch (e) {
+    throw new Error(
+      e && e.name === 'QuotaExceededError'
+        ? 'Browser storage is full — delete or archive some courses.'
+        : 'Could not save to browser storage.'
+    )
+  }
+}
 
-export const uploadCourseFile = (filename, content) =>
-  fetch('/api/courses', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ filename, content }),
-  }).then(json)
+const names = (store) => Object.keys(store).filter((n) => store[n] && store[n].txt).sort()
 
-export const getQuestions = (course) =>
-  fetch('/api/courses/' + encodeURIComponent(course)).then(json)
+export async function getCourses() {
+  return names(load(COURSES_KEY))
+}
 
-export const getAnswers = (course) =>
-  fetch('/api/answers/' + encodeURIComponent(course)).then(json)
+export async function uploadCourseFile(filename, content) {
+  const base = String(filename).split(/[\\/]/).pop()
+  if (!/\.(txt|md)$/i.test(base)) throw new Error('only .txt and .md files are allowed')
+  const name = base.replace(/\.(txt|md)$/i, '')
+  const isMd = /\.md$/i.test(base)
+  const courses = load(COURSES_KEY)
+  courses[name] = courses[name] || {}
+  courses[name][isMd ? 'md' : 'txt'] = String(content ?? '')
+  save(COURSES_KEY, courses)
+  return { saved: base }
+}
 
-export const getNotes = (course) =>
-  fetch('/api/notes/' + encodeURIComponent(course)).then(json)
+export async function getQuestions(course) {
+  const entry = load(COURSES_KEY)[course]
+  return entry && entry.txt ? parseQuestions(entry.txt) : []
+}
 
-export const getArchive = () => fetch('/api/archive').then(json)
+export async function getNotes(course) {
+  const entry = load(COURSES_KEY)[course]
+  const md = entry && entry.md
+  return { exists: !!md, content: md || '' }
+}
 
-export const archiveCourse = (course) =>
-  fetch('/api/archive/' + encodeURIComponent(course), { method: 'POST' }).then(json)
+export async function getAnswers(course) {
+  return load(ANSWERS_KEY)[course] || []
+}
 
-export const reviveCourse = (course) =>
-  fetch('/api/archive/' + encodeURIComponent(course) + '/revive', { method: 'POST' }).then(json)
+export async function saveAnswer(course, { questionNumber, candidateAnswer, marks }) {
+  const store = load(ANSWERS_KEY)
+  const list = store[course] ? store[course].slice() : []
+  const row = {
+    questionNumber: String(questionNumber),
+    candidateAnswer: String(candidateAnswer),
+    marks: Number(marks) || 0,
+  }
+  const idx = list.findIndex((a) => a.questionNumber === row.questionNumber)
+  if (idx >= 0) list[idx] = row
+  else list.push(row)
+  store[course] = list
+  save(ANSWERS_KEY, store)
+  return list
+}
 
-// Reset all attempts for a course, or only specific questions when
-// questionNumbers is provided (per-section reset).
-export const resetAnswers = (course, questionNumbers) =>
-  fetch('/api/answers/' + encodeURIComponent(course), {
-    method: 'DELETE',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(questionNumbers ? { questionNumbers } : {}),
-  }).then(json)
+export async function resetAnswers(course, questionNumbers) {
+  const store = load(ANSWERS_KEY)
+  if (questionNumbers) {
+    const drop = new Set(questionNumbers.map(String))
+    const remaining = (store[course] || []).filter((a) => !drop.has(String(a.questionNumber)))
+    if (remaining.length) store[course] = remaining
+    else delete store[course]
+    save(ANSWERS_KEY, store)
+    return remaining
+  }
+  delete store[course]
+  save(ANSWERS_KEY, store)
+  return []
+}
 
-export const saveAnswer = (course, payload) =>
-  fetch('/api/answers/' + encodeURIComponent(course), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  }).then(json)
+export async function getArchive() {
+  return names(load(ARCHIVE_KEY))
+}
+
+export async function archiveCourse(course) {
+  const courses = load(COURSES_KEY)
+  const archive = load(ARCHIVE_KEY)
+  if (courses[course]) {
+    archive[course] = courses[course]
+    delete courses[course]
+    save(ARCHIVE_KEY, archive)
+    save(COURSES_KEY, courses)
+  }
+  const answers = load(ANSWERS_KEY)
+  delete answers[course]
+  save(ANSWERS_KEY, answers)
+  return { archived: course, archive: names(archive) }
+}
+
+export async function reviveCourse(course) {
+  const courses = load(COURSES_KEY)
+  const archive = load(ARCHIVE_KEY)
+  if (archive[course]) {
+    courses[course] = archive[course]
+    delete archive[course]
+    save(COURSES_KEY, courses)
+    save(ARCHIVE_KEY, archive)
+  }
+  return { revived: course, archive: names(archive) }
+}

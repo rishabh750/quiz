@@ -1,7 +1,6 @@
 const fs = require('node:fs')
 const path = require('node:path')
 
-// Minimal RFC-4180-ish CSV parser that handles quoted fields containing commas.
 function parseCsvLine(line) {
   const out = []
   let cur = ''
@@ -30,9 +29,6 @@ function parseCsv(text) {
     .map(parseCsvLine)
 }
 
-// Parse a quiz file. Fields are separated by "$$$" (preferred — no escaping
-// needed) or, for older files, by commas. The delimiter is detected from the
-// header row so both formats keep working.
 function parseQuiz(text) {
   const lines = text.split(/\r?\n/).filter((l) => l.trim() !== '')
   if (lines.length === 0) return []
@@ -42,7 +38,6 @@ function parseQuiz(text) {
   return lines.map(parseCsvLine)
 }
 
-// Quote a CSV field if it contains comma, quote or newline.
 function csvField(value) {
   const s = String(value ?? '')
   return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
@@ -50,9 +45,53 @@ function csvField(value) {
 
 const ANSWERS_HEADER = 'question number,candidate answer,marks'
 
-// Default Gemini model used for generation. Large output budget so a
-// 100-question quiz plus notes fit in one response.
-const DEFAULT_MODEL = 'gemini-2.5-flash'
+const GENERATORS = {
+  gemini: {
+    model: 'gemini-2.5-flash',
+    url: (m) =>
+      'https://generativelanguage.googleapis.com/v1beta/models/' +
+      encodeURIComponent(m) +
+      ':streamGenerateContent?alt=sse',
+    headers: (key) => ({ 'Content-Type': 'application/json', 'x-goog-api-key': key }),
+    body: (prompt, m) => {
+      const generationConfig = { temperature: 0.6, maxOutputTokens: 32768 }
+      if (/2\.5/.test(m)) generationConfig.thinkingConfig = { thinkingBudget: 0 }
+      return { contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig }
+    },
+    delta: (o) =>
+      ((o.candidates && o.candidates[0] && o.candidates[0].content && o.candidates[0].content.parts) || [])
+        .map((p) => p.text || '')
+        .join(''),
+  },
+  openai: {
+    model: 'gpt-4o',
+    url: () => 'https://api.openai.com/v1/chat/completions',
+    headers: (key) => ({ 'Content-Type': 'application/json', Authorization: 'Bearer ' + key }),
+    body: (prompt, m) => ({
+      model: m,
+      stream: true,
+      max_tokens: 16384,
+      messages: [{ role: 'user', content: prompt }],
+    }),
+    delta: (o) => (o.choices && o.choices[0] && o.choices[0].delta && o.choices[0].delta.content) || '',
+  },
+  anthropic: {
+    model: 'claude-sonnet-5',
+    url: () => 'https://api.anthropic.com/v1/messages',
+    headers: (key) => ({
+      'Content-Type': 'application/json',
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01',
+    }),
+    body: (prompt, m) => ({
+      model: m,
+      stream: true,
+      max_tokens: 32000,
+      messages: [{ role: 'user', content: prompt }],
+    }),
+    delta: (o) => (o.type === 'content_block_delta' && o.delta && o.delta.text) || '',
+  },
+}
 
 function readJsonBody(req) {
   return new Promise((resolve, reject) => {
@@ -72,13 +111,9 @@ function send(res, status, body) {
   res.end(JSON.stringify(body))
 }
 
-// Build an async request handler for the /api routes, backed by the given
-// folders. Returns true when it handled the request, false otherwise so the
-// caller can fall through to static-file / next-middleware handling.
 function createApiHandler({ courseDir, answersDir, archiveDir }) {
   const answersFile = (course) => path.join(answersDir, course + '.csv')
 
-  // Move a course's quiz (.txt) and notes (.md) between two folders.
   const moveCourseFiles = (name, fromDir, toDir) => {
     if (!fs.existsSync(toDir)) fs.mkdirSync(toDir, { recursive: true })
     const moved = []
@@ -89,7 +124,6 @@ function createApiHandler({ courseDir, answersDir, archiveDir }) {
         try {
           fs.renameSync(src, dest)
         } catch {
-          // Fallback for cross-device moves.
           fs.copyFileSync(src, dest)
           fs.unlinkSync(src)
         }
@@ -140,7 +174,6 @@ function createApiHandler({ courseDir, answersDir, archiveDir }) {
     try {
       const parts = url.pathname.replace(/^\/api/, '').split('/').filter(Boolean)
 
-      // GET /api/courses -> list course names
       if (req.method === 'GET' && parts[0] === 'courses' && parts.length === 1) {
         if (!fs.existsSync(courseDir)) { send(res, 200, []); return true }
         const courses = fs
@@ -152,14 +185,11 @@ function createApiHandler({ courseDir, answersDir, archiveDir }) {
         return true
       }
 
-      // GET /api/archive -> list archived course names
       if (req.method === 'GET' && parts[0] === 'archive' && parts.length === 1) {
         send(res, 200, listArchive())
         return true
       }
 
-      // POST /api/archive/:name -> archive a course: clear its answers and move
-      // its quiz + notes from the course folder into the archive folder.
       if (req.method === 'POST' && parts[0] === 'archive' && parts.length === 2) {
         const name = path.basename(decodeURIComponent(parts[1]))
         writeAnswers(name, [])
@@ -168,8 +198,6 @@ function createApiHandler({ courseDir, answersDir, archiveDir }) {
         return true
       }
 
-      // POST /api/archive/:name/revive -> move a course's quiz + notes back
-      // from the archive folder into the course folder.
       if (req.method === 'POST' && parts[0] === 'archive' && parts.length === 3 && parts[2] === 'revive') {
         const name = path.basename(decodeURIComponent(parts[1]))
         const moved = moveCourseFiles(name, archiveDir, courseDir)
@@ -177,7 +205,6 @@ function createApiHandler({ courseDir, answersDir, archiveDir }) {
         return true
       }
 
-      // POST /api/courses -> upload a quiz (.txt) or notes (.md) file
       if (req.method === 'POST' && parts[0] === 'courses' && parts.length === 1) {
         const { filename, content } = await readJsonBody(req)
         const safe = path.basename(String(filename || ''))
@@ -191,34 +218,21 @@ function createApiHandler({ courseDir, answersDir, archiveDir }) {
         return true
       }
 
-      // POST /api/generate -> proxy a prompt to the Gemini API and STREAM its
-      // text back as it arrives (chunked text/plain), so the UI can show live
-      // progress. Proxied to avoid CORS and keep the key out of page URLs.
       if (req.method === 'POST' && parts[0] === 'generate' && parts.length === 1) {
-        const { prompt, apiKey, model } = await readJsonBody(req)
+        const { prompt, apiKey, provider, model } = await readJsonBody(req)
         if (!apiKey) { send(res, 400, { error: 'missing API key' }); return true }
         if (!prompt) { send(res, 400, { error: 'missing prompt' }); return true }
-        const m = model || DEFAULT_MODEL
-        const endpoint =
-          'https://generativelanguage.googleapis.com/v1beta/models/' +
-          encodeURIComponent(m) +
-          ':streamGenerateContent?alt=sse'
-        const generationConfig = { temperature: 0.6, maxOutputTokens: 32768 }
-        // For 2.5 models, turn off "thinking" so the whole output budget goes
-        // to the quiz/notes content rather than reasoning tokens (also faster).
-        if (/2\.5/.test(m)) generationConfig.thinkingConfig = { thinkingBudget: 0 }
-        const gres = await fetch(endpoint, {
+        const gen = GENERATORS[provider] || GENERATORS.gemini
+        const m = model || gen.model
+        const gres = await fetch(gen.url(m), {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-          body: JSON.stringify({
-            contents: [{ role: 'user', parts: [{ text: prompt }] }],
-            generationConfig,
-          }),
+          headers: gen.headers(apiKey),
+          body: JSON.stringify(gen.body(prompt, m)),
         })
         if (!gres.ok || !gres.body) {
           const data = await gres.json().catch(() => ({}))
           send(res, gres.ok ? 502 : gres.status, {
-            error: (data.error && data.error.message) || 'Gemini request failed',
+            error: (data.error && data.error.message) || 'Generation request failed',
           })
           return true
         }
@@ -234,7 +248,6 @@ function createApiHandler({ courseDir, answersDir, archiveDir }) {
           const { done, value } = await reader.read()
           if (done) break
           buf += decoder.decode(value, { stream: true })
-          // Server-Sent Events: one "data: {json}" per line.
           let nl
           while ((nl = buf.indexOf('\n')) >= 0) {
             const line = buf.slice(0, nl).trim()
@@ -243,13 +256,10 @@ function createApiHandler({ courseDir, answersDir, archiveDir }) {
             const payload = line.slice(5).trim()
             if (!payload || payload === '[DONE]') continue
             try {
-              const obj = JSON.parse(payload)
-              const t = ((obj.candidates && obj.candidates[0]?.content?.parts) || [])
-                .map((p) => p.text || '')
-                .join('')
+              const t = gen.delta(JSON.parse(payload))
               if (t) res.write(t)
             } catch {
-              // ignore partial / non-JSON keepalive lines
+              void 0
             }
           }
         }
@@ -257,23 +267,26 @@ function createApiHandler({ courseDir, answersDir, archiveDir }) {
         return true
       }
 
-      // GET /api/courses/:name -> parsed questions
       if (req.method === 'GET' && parts[0] === 'courses' && parts.length === 2) {
         const name = decodeURIComponent(parts[1])
         const file = path.join(courseDir, name + '.txt')
         if (!fs.existsSync(file)) { send(res, 404, { error: 'course not found' }); return true }
         const rows = parseQuiz(fs.readFileSync(file, 'utf8'))
         const header = rows[0] || []
-        // The section column is optional. If the header's first cell isn't
-        // "section", treat the file as the column-less format and put every
-        // question in the default "main" section.
-        const hasSection = (header[0] || '').trim().toLowerCase() === 'section'
+        const cells = header.map((h) => (h || '').trim().toLowerCase())
+        const hasSection = cells[0] === 'section'
+        const isQa = cells.includes('answer') && !cells.some((c) => c.startsWith('option'))
         const body = rows.slice(1).map((r) => {
           const c = hasSection ? r : ['main', ...r]
-          return {
+          const base = {
             section: c[0] && c[0].trim() ? c[0] : 'main',
             questionNumber: c[1],
             question: c[2],
+          }
+          if (isQa) return { ...base, type: 'qa', answer: c[3] }
+          return {
+            ...base,
+            type: 'mcq',
             options: [c[3], c[4], c[5], c[6]],
             correctOption: Number(c[7]),
           }
@@ -282,13 +295,11 @@ function createApiHandler({ courseDir, answersDir, archiveDir }) {
         return true
       }
 
-      // GET /api/answers/:name -> saved answers
       if (req.method === 'GET' && parts[0] === 'answers' && parts.length === 2) {
         send(res, 200, readAnswers(decodeURIComponent(parts[1])))
         return true
       }
 
-      // GET /api/notes/:name -> raw markdown notes (same base name, .md)
       if (req.method === 'GET' && parts[0] === 'notes' && parts.length === 2) {
         const name = decodeURIComponent(parts[1])
         const file = path.join(courseDir, name + '.md')
@@ -297,7 +308,6 @@ function createApiHandler({ courseDir, answersDir, archiveDir }) {
         return true
       }
 
-      // POST /api/answers/:name -> upsert an answer row
       if (req.method === 'POST' && parts[0] === 'answers' && parts.length === 2) {
         const name = decodeURIComponent(parts[1])
         const { questionNumber, candidateAnswer, marks } = await readJsonBody(req)
@@ -315,9 +325,6 @@ function createApiHandler({ courseDir, answersDir, archiveDir }) {
         return true
       }
 
-      // DELETE /api/answers/:name -> reset attempts.
-      // With a { questionNumbers: [...] } body, reset only those questions
-      // (used for per-section resets); otherwise reset the whole course.
       if (req.method === 'DELETE' && parts[0] === 'answers' && parts.length === 2) {
         const name = decodeURIComponent(parts[1])
         const body = await readJsonBody(req).catch(() => ({}))
