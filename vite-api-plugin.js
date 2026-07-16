@@ -1,12 +1,10 @@
 import path from 'node:path'
-import apiModule from './server/api.cjs'
-
-const { createApiHandler } = apiModule
 
 export default function quizApiPlugin() {
   return {
     name: 'quiz-api',
-    configureServer(server) {
+    async configureServer(server) {
+      const { createApiHandler } = (await import('./server/api.cjs')).default
       const root = server.config.root
       const handle = createApiHandler({
         courseDir: path.join(root, 'course'),
