@@ -49,13 +49,11 @@ app.include_router(api_router)
 
 @app.middleware("http")
 async def _init_middleware(request, call_next):
-    ensure_initialized()
+    try:
+        ensure_initialized()
+    except Exception:
+        pass
     return await call_next(request)
-
-
-@app.on_event("startup")
-def on_startup():
-    ensure_initialized()
 
 
 if os.path.isdir(settings.static_dir):
