@@ -1,6 +1,6 @@
 # Architecture
 
-High-level view of InterviewPrep: the React frontend, the FastAPI + PostgreSQL
+High-level view of InterviewPrep: the React frontend, the Spring Boot + PostgreSQL
 backend, and how they are packaged for Docker. Diagrams are UML rendered with
 Mermaid (component, deployment, and sequence — no class-level detail).
 
@@ -8,7 +8,7 @@ The core idea is **one React UI, two backends**. The frontend picks its backend 
 runtime from `window.IS_DESKTOP`:
 
 - **Desktop** → single-user, data in `localStorage`, LLM called directly from the app.
-- **Web** → multi-user FastAPI + PostgreSQL, data encrypted at rest, LLM proxied server-side.
+- **Web** → multi-user Spring Boot + PostgreSQL; data encrypted at rest **and** in transit; LLM proxied server-side.
 
 ## Component overview
 
@@ -34,11 +34,11 @@ graph TB
     REM["backends/remote.js<br/>+ auth.js (JWT)"]
   end
 
-  subgraph Backend["FastAPI backend"]
-    API["/api routers<br/>auth · account · courses · answers · generate"]
-    SEC["security.py<br/>JWT · bcrypt · Fernet"]
-    CRY["crypto.py<br/>EncryptedText"]
-    PROXY["llm.py<br/>provider stream proxy"]
+  subgraph Backend["Spring Boot backend"]
+    API["/api controllers<br/>auth · account · courses · answers · generate"]
+    SEC["security<br/>JWT · BCrypt"]
+    CRY["crypto<br/>payload cipher · at-rest AES"]
+    PROXY["llm<br/>provider stream proxy"]
     API --> SEC
     API --> CRY
     API --> PROXY
@@ -49,7 +49,7 @@ graph TB
 
   FAC -.desktop.-> LOC
   FAC -.web.-> REM
-  REM -->|HTTPS + Bearer JWT| API
+  REM -->|encrypted payload + Bearer JWT| API
   API --> DB
   CRY -->|encrypt/decrypt| DB
   LLM -.desktop: direct.-> PROV
@@ -61,8 +61,10 @@ graph TB
 - `api.js` is the single seam: view components never branch on mode themselves.
 - On desktop the browser calls the provider directly; on web the request is proxied
   through `/api/generate` using the account's stored (encrypted) key.
-- `EncryptedText` transparently encrypts sensitive columns on write and decrypts on
-  read, so ciphertext is what actually rests in Postgres.
+- The at-rest JPA converter transparently AES-GCM-encrypts sensitive columns on
+  write and decrypts on read, so ciphertext is what actually rests in Postgres.
+- A payload cipher filter decrypts each request body (RSA-wrapped AES-GCM) and
+  encrypts each response, so `/api` traffic is ciphertext even in the network tab.
 
 ## Deployment (Docker Compose)
 
@@ -71,30 +73,30 @@ graph LR
   User(["Browser"])
 
   subgraph Host["Docker host"]
-    subgraph Net["compose network (internal)"]
-      subgraph App["app container"]
-        S["FastAPI (uvicorn)<br/>serves /api + static UI"]
-        ST["/static = built React dist"]
-        S --- ST
-      end
-      DB[("db container<br/>postgres:16<br/>volume: pgdata")]
-      S -->|DATABASE_URL| DB
+    subgraph C["single container"]
+      SH["start.sh"]
+      S["Spring Boot (Tomcat)<br/>serves /api + static UI"]
+      DB[("PostgreSQL<br/>127.0.0.1:5432")]
+      SH --> DB
+      SH --> S
+      S -->|127.0.0.1| DB
     end
   end
 
-  User -->|":8000 (HTTP)"| S
+  V1[("pgdata volume")] -.-> DB
+  V2[("appdata volume<br/>secrets")] -.-> S
+  User -->|":8000"| S
   User -. put TLS in front .-> S
-
-  ENV["JWT_SECRET<br/>APP_ENCRYPTION_KEY<br/>(.env)"] -.-> S
 ```
 
 **Key properties**
 
-- **Single exposed surface:** only the `app` container publishes a port (`8000`),
-  serving both the UI and the API. **Postgres has no host port** — reachable only
-  inside the compose network.
-- **Multi-stage image:** a Node stage builds the React `dist/`; the Python stage
-  copies it in as `static/` and runs FastAPI, so one image ships UI + API.
+- **One container, one command:** PostgreSQL, the API, and the UI all run in a
+  single image. `start.sh` boots Postgres on `127.0.0.1`, then launches the app.
+  Only port `8000` is published.
+- **Multi-stage image:** a Node stage builds the React `dist/`; a Zulu JDK stage
+  builds the Spring Boot jar; the final Zulu JRE stage adds PostgreSQL, so one image
+  ships DB + UI + API. State lives in the `pgdata` and `appdata` volumes.
 - **Secrets** (`JWT_SECRET`, `APP_ENCRYPTION_KEY`) come from `.env`; compose fails
   fast if unset. `APP_ENCRYPTION_KEY` must stay stable or encrypted data is lost.
 - **State** lives in the `pgdata` volume.
@@ -102,18 +104,46 @@ graph LR
 Desktop apps are a separate deployment entirely — no containers, no backend; see
 [DESKTOP.md](DESKTOP.md).
 
+## Flow: encrypted transport (every /api call)
+
+Payloads are ciphertext on the wire — even the register body in the network tab.
+
+```mermaid
+sequenceDiagram
+  participant UI as React UI
+  participant API as Spring Boot /api
+
+  Note over UI,API: once, cached
+  UI->>API: GET /api/crypto/public-key
+  API-->>UI: RSA public key
+
+  Note over UI,API: per request
+  UI->>UI: random AES-256 key + IV
+  UI->>UI: RSA-OAEP wrap AES key → X-Enc-Key header
+  UI->>UI: AES-GCM encrypt body → {iv, d}
+  UI->>API: request (header + encrypted body)
+  API->>API: RSA unwrap AES key, AES-GCM decrypt body
+  API->>API: JWT check + handle
+  API->>API: AES-GCM encrypt response with same key
+  API-->>UI: {iv, d} (X-Enc: 1)
+  UI->>UI: AES-GCM decrypt → JSON
+```
+
+The `/generate` stream reuses the same AES key, encrypting each streamed chunk
+(`base64(iv‖ciphertext)` per line) so the live token stream stays confidential too.
+
 ## Flow: register / login (web)
 
 ```mermaid
 sequenceDiagram
   actor U as User
   participant UI as React UI
-  participant API as FastAPI /api
+  participant API as Spring Boot /api
   participant DB as PostgreSQL
 
   U->>UI: register (email, password, provider, API key)
   UI->>API: POST /api/auth/register
-  API->>API: bcrypt(password), Fernet(api_key)
+  API->>API: BCrypt(password), AES-GCM(api_key)
   API->>DB: INSERT user (hash + ciphertext)
   API-->>UI: JWT
   UI->>UI: store token (localStorage)
@@ -129,7 +159,7 @@ sequenceDiagram
 sequenceDiagram
   actor U as User
   participant UI as React UI
-  participant API as FastAPI /api
+  participant API as Spring Boot /api
   participant DB as PostgreSQL
   participant P as LLM provider
 
@@ -155,19 +185,19 @@ sequenceDiagram
 sequenceDiagram
   participant API as router
   participant M as SQLAlchemy model
-  participant ET as EncryptedText
+  participant ET as AtRestConverter
   participant DB as PostgreSQL
 
   Note over API,DB: Write
   API->>M: save question / api_key / notes
   M->>ET: process_bind_param(value)
-  ET->>ET: Fernet.encrypt (APP_ENCRYPTION_KEY)
+  ET->>ET: AES-GCM.encrypt (APP_ENCRYPTION_KEY)
   ET->>DB: store ciphertext (TEXT)
 
   Note over API,DB: Read
   API->>M: load row
   M->>ET: process_result_value(ciphertext)
-  ET->>ET: Fernet.decrypt
+  ET->>ET: AES-GCM.decrypt
   ET-->>API: plaintext (in-memory only)
 ```
 
@@ -186,7 +216,7 @@ graph LR
   C -->|has many| Q
   C -->|has many| A
 
-  L["🔒 = Fernet-encrypted at rest"]
+  L["🔒 = AES-GCM-encrypted at rest"]
 ```
 
 ## Mode selection at a glance

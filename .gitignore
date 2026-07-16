@@ -6,3 +6,6 @@ answers/*
 course/*
 release/*
 dist/
+backend/target/
+backend/.secrets/
+.env

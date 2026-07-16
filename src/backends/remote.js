@@ -10,7 +10,7 @@ export async function getCourses() {
 export async function uploadCourseFile(filename, content) {
   return apiFetch('/api/courses', {
     method: 'POST',
-    body: JSON.stringify({ filename, content }),
+    json: { filename, content },
   }).then(json)
 }
 
@@ -29,14 +29,14 @@ export async function getAnswers(course) {
 export async function saveAnswer(course, payload) {
   return apiFetch('/api/answers/' + enc(course), {
     method: 'POST',
-    body: JSON.stringify(payload),
+    json: payload,
   }).then(json)
 }
 
 export async function resetAnswers(course, questionNumbers) {
   return apiFetch('/api/answers/' + enc(course), {
     method: 'DELETE',
-    body: JSON.stringify(questionNumbers ? { questionNumbers } : {}),
+    json: questionNumbers ? { questionNumbers } : {},
   }).then(json)
 }
 

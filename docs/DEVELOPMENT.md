@@ -3,7 +3,7 @@
 How to run InterviewPrep locally and work on the code. The app is a React + Vite
 frontend that runs in **two modes**, and this doc covers developing against both:
 
-- **Web / hosted mode** — talks to the FastAPI + PostgreSQL backend ([backend/](../backend/)).
+- **Web / hosted mode** — talks to the Spring Boot + PostgreSQL backend ([backend/](../backend/)).
 - **Desktop mode** — single-user, everything in the browser's `localStorage`, no backend.
 
 The same React components serve both; the frontend picks a backend automatically
@@ -13,8 +13,9 @@ The same React components serve both; the frontend picks a backend automatically
 ## Prerequisites
 
 - **Node.js 18+** (Node 22 recommended) and npm.
-- For backend work: **Python 3.12+** and a reachable **PostgreSQL** (local install
-  or the Docker one — see [DOCKER.md](DOCKER.md)).
+- For backend work: **Azul Zulu JDK 21** and a reachable **PostgreSQL** (local
+  install or the Docker one — see [DOCKER.md](DOCKER.md)). Maven is not required —
+  use the bundled `./mvnw` wrapper.
 
 ```bash
 npm install
@@ -52,13 +53,14 @@ locally — simplest is a standalone local Postgres with a matching `DATABASE_UR
 
 ```bash
 cd backend
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env         # set DATABASE_URL, JWT_SECRET, APP_ENCRYPTION_KEY
-uvicorn app.main:app --reload --port 8000
+export DATABASE_URL=postgresql://interviewprep:interviewprep@localhost:5432/interviewprep
+export APP_ENCRYPTION_KEY=dev-key-change-me
+export SECRET_DIR=.secrets
+./mvnw spring-boot:run
 ```
 
-Tables auto-create on startup. Details: [backend/README.md](../backend/README.md).
+Tables auto-create on startup and a default account is seeded
+(`admin@interviewprep.app` / `interviewprep`). Details: [backend/README.md](../backend/README.md).
 
 **3. Start the frontend against it:**
 
@@ -80,7 +82,8 @@ src/                    React app
   api.js                backend facade: local (desktop) vs remote (web)
   backends/local.js     localStorage implementation
   backends/remote.js    REST + JWT implementation
-  auth.js               token storage + apiFetch helper (web)
+  auth.js               token storage + apiFetch (encrypts requests) (web)
+  crypto.js             WebCrypto payload encryption (RSA-OAEP + AES-GCM) (web)
   session.js            unified provider/key state (desktop vs web)
   mode.js               IS_DESKTOP + API_BASE
   gemini.js             LLM streaming (direct on desktop, proxied on web)
@@ -88,9 +91,14 @@ src/                    React app
   lib/quizFormat.js     quiz parser ($$-delimited, MCQ vs non-MCQ)
   components/           UI (AuthModal, Header, Notes, ...)
 
-backend/                FastAPI + PostgreSQL (web mode) — see backend/README.md
-  app/                  models, routers, security, crypto, llm
-  schema.sql            reference DDL
+backend/                Spring Boot + PostgreSQL (web mode) — see backend/README.md
+  src/main/java/com/interviewprep/
+    web/                controllers + DTOs
+    model/ repo/        JPA entities + repositories
+    security/           JWT filter, argument resolver
+    crypto/             payload cipher filter, AES/RSA, at-rest converter
+    service/            LLM proxy, quiz parser, seeding
+    config/             datasource, secrets, filters, CORS/static
 
 electron/               desktop shell (main.cjs, preload.cjs)
 server/api.cjs          Node filesystem/LLM API used by the desktop shell
@@ -117,7 +125,7 @@ On sandboxed shells you may need:
 **Compile-check the backend:**
 
 ```bash
-python -m py_compile backend/app/*.py backend/app/routers/*.py
+cd backend && ./mvnw -q -DskipTests package
 ```
 
 ## Coding conventions

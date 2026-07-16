@@ -1,0 +1,33 @@
+server:
+  port: ${PORT:8000}
+  error:
+    include-message: always
+    include-binding-errors: never
+
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  mvc:
+    async:
+      request-timeout: 300000
+
+app:
+  cors-origins: ${CORS_ORIGINS:*}
+  static-dir: ${STATIC_DIR:static}
+  secret-dir: ${SECRET_DIR:/data}
+  jwt-expire-minutes: ${JWT_EXPIRE_MINUTES:10080}
+  default-user:
+    email: ${DEFAULT_USER_EMAIL:admin@interviewprep.app}
+    password: ${DEFAULT_USER_PASSWORD:interviewprep}
+    provider: ${DEFAULT_USER_PROVIDER:gemini}
+    api-key: ${DEFAULT_USER_API_KEY:}
+
+logging:
+  level:
+    org.hibernate.SQL: warn

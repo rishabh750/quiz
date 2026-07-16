@@ -5,8 +5,6 @@ release
 .gitignore
 ios
 android
-backend/.venv
-backend/__pycache__
-**/__pycache__
+backend/target
 *.log
 .env

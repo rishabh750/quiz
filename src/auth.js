@@ -1,4 +1,5 @@
 import { API_BASE } from './mode.js'
+import { prepareRequest, decryptEnvelope, resetPublicKey } from './crypto.js'
 
 const TOKEN_KEY = 'ip_token'
 
@@ -19,16 +20,30 @@ export function logout() {
   setToken('')
 }
 
-export async function apiFetch(path, opts = {}) {
-  const headers = { ...(opts.headers || {}) }
+async function send(path, opts, hasBody) {
+  const { headers: encHeaders, body, aesKey } = await prepareRequest(hasBody ? opts.json : undefined)
+  const headers = { ...encHeaders }
   const token = getToken()
   if (token) headers.Authorization = 'Bearer ' + token
-  if (opts.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json'
-  const res = await fetch(API_BASE + path, { ...opts, headers })
+  const res = await fetch(API_BASE + path, { method: opts.method || 'GET', headers, body })
+  const encrypted = res.headers.get('X-Enc') === '1'
+  let text = await res.text()
+  if (encrypted) text = await decryptEnvelope(aesKey, text)
+  return { res, text, encrypted }
+}
+
+export async function apiFetch(path, opts = {}) {
+  const hasBody = opts.json !== undefined
+  let attempt = await send(path, opts, hasBody)
+  if (attempt.res.status === 400 && !attempt.encrypted && attempt.text.includes('encryption key')) {
+    resetPublicKey()
+    attempt = await send(path, opts, hasBody)
+  }
+  const { res, text } = attempt
   if (!res.ok) {
     let msg = 'Request failed (' + res.status + ')'
     try {
-      const data = await res.json()
+      const data = JSON.parse(text)
       if (data && data.detail) msg = typeof data.detail === 'string' ? data.detail : msg
     } catch {
       void 0
@@ -37,7 +52,12 @@ export async function apiFetch(path, opts = {}) {
     err.status = res.status
     throw err
   }
-  return res
+  return {
+    ok: res.ok,
+    status: res.status,
+    json: async () => (text ? JSON.parse(text) : null),
+    text: async () => text,
+  }
 }
 
 const json = (res) => res.json()
@@ -45,7 +65,7 @@ const json = (res) => res.json()
 export async function register({ email, password, provider, apiKey }) {
   const res = await apiFetch('/api/auth/register', {
     method: 'POST',
-    body: JSON.stringify({ email, password, provider, api_key: apiKey || null }),
+    json: { email, password, provider, api_key: apiKey || null },
   })
   const data = await json(res)
   setToken(data.access_token)
@@ -55,7 +75,7 @@ export async function register({ email, password, provider, apiKey }) {
 export async function login({ email, password }) {
   const res = await apiFetch('/api/auth/login', {
     method: 'POST',
-    body: JSON.stringify({ email, password }),
+    json: { email, password },
   })
   const data = await json(res)
   setToken(data.access_token)
@@ -71,6 +91,6 @@ export async function updateAccount({ provider, apiKey }) {
   const body = {}
   if (provider !== undefined) body.provider = provider
   if (apiKey !== undefined) body.api_key = apiKey
-  const res = await apiFetch('/api/account', { method: 'PATCH', body: JSON.stringify(body) })
+  const res = await apiFetch('/api/account', { method: 'PATCH', json: body })
   return json(res)
 }

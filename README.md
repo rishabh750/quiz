@@ -4,11 +4,11 @@ A minimalistic, responsive React + Vite study app with light/dark mode,
 section-based quizzes (MCQ **and** open-ended / non-MCQ), markdown notes, and
 one-click quiz/notes generation via your choice of **Gemini, Claude, or ChatGPT**.
 
-**Fully client-side.** All data lives in the visitor's own browser
-(`localStorage`) and the AI request goes **straight from their browser to the
-provider** — nothing is stored on or routed through the host. That means it
-deploys as a plain static site, and each visitor's courses, answers, and API key
-stay private to their browser.
+**One UI, two modes.** The same React app runs as a **hosted multi-user web app**
+(accounts, a **Java Spring Boot + PostgreSQL** backend, data encrypted at rest and
+end-to-end encrypted in transit) or as **single-user desktop apps** (everything in
+the app's own `localStorage`, no backend). It picks the backend automatically from
+`window.IS_DESKTOP`.
 
 ## Documentation
 
@@ -16,7 +16,7 @@ stay private to their browser.
 - [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) — run and develop locally (both modes).
 - [docs/DESKTOP.md](docs/DESKTOP.md) — build the macOS / Windows desktop apps.
 - [docs/DOCKER.md](docs/DOCKER.md) — host the multi-user web app (backend + Postgres + UI).
-- [docs/VERCEL.md](docs/VERCEL.md) — deploy the web app to Vercel (static UI + Python function + managed Postgres).
+- [docs/VERCEL.md](docs/VERCEL.md) — host the UI on Vercel with the API as a container.
 
 ## Prerequisites
 
@@ -38,64 +38,60 @@ Open the printed URL (default http://localhost:5173).
 
 ## Two deployment modes
 
-- **Hosted web app (multi-user):** a **FastAPI + PostgreSQL** backend ([backend/](backend/))
-  with accounts. Each user's API key and their questions/notes are **encrypted at
-  rest** (Fernet); answers are per-user. The frontend shows a login/register
-  landing (register picks the AI model + key). Ship it all with Docker Compose.
+- **Hosted web app (multi-user):** a **Spring Boot (Java 21 / Zulu) + PostgreSQL**
+  backend ([backend/](backend/)) with accounts. Each user's API key and their
+  questions/notes are **AES-GCM encrypted at rest**; answers are per-user; sessions
+  use **JWT**. Every `/api` payload is **end-to-end encrypted** (RSA-wrapped AES-GCM)
+  so request/response bodies are ciphertext even in the browser network tab. The
+  frontend shows a login/register landing (register picks the AI model + key). Ship
+  it all with Docker Compose.
 - **Desktop apps (macOS/Windows):** unchanged — single-user, everything in the
   app's own `localStorage`, no accounts. The same React UI runs in both; it picks
   the backend automatically (`window.IS_DESKTOP` set by the Electron preload).
 
-## Host it with Docker (backend + Postgres + UI)
+## Host it with Docker (one container: Postgres + backend + UI)
 
-One command — Postgres (internal), the app container that serves the API and UI,
-auto-generated secrets, and a seeded default account:
+One command runs **everything inside a single container** — PostgreSQL, the API,
+and the UI — with auto-generated secrets and a seeded default account:
 
 ```bash
 docker compose up --build -d
+# or:  docker build -t interviewprep . && \
+#      docker run -d -p 8000:8000 -v ip_pgdata:/var/lib/postgresql/data -v ip_appdata:/data interviewprep
 ```
 
 Open http://localhost:8000 and log in with **`admin@interviewprep.app` /
-`interviewprep`**, then set your API key under **Profile** (top-left 👤). No `.env`
-or secret generation needed — the encryption key and JWT secret are generated and
-persisted to a volume on first run. Put a TLS terminator (Caddy/Nginx/your PaaS) in
-front for HTTPS. Full details, overrides, and production notes: [docs/DOCKER.md](docs/DOCKER.md).
+`interviewprep`**, then set your API key under **Profile** (top-left 👤). No `.env`,
+external database, or secret generation needed — everything is created on first run
+and persisted to volumes. Access via **HTTPS or `http://localhost`** to keep payload
+encryption on (browser WebCrypto needs a secure context; over plain remote HTTP the
+app still works but sends plaintext — put TLS in front). Full details, overrides, and
+production notes: [docs/DOCKER.md](docs/DOCKER.md).
 
 ## Deploy to Vercel
 
-Static UI + FastAPI Python function + managed Postgres. Import the repo, attach a
-Vercel Postgres database, set one env var (`APP_ENCRYPTION_KEY`), and deploy — see
-[docs/VERCEL.md](docs/VERCEL.md).
+Vercel can host the **static UI**; the Java API runs as a **container** elsewhere
+(Railway / Render / Fly / Cloud Run — build with [Dockerfile.vercel](Dockerfile.vercel)).
+Point the UI at it with `VITE_API_BASE`. See [docs/VERCEL.md](docs/VERCEL.md).
 
-Backend details, schema, and running it standalone: [backend/](backend/) — see
-[backend/schema.sql](backend/schema.sql) for the DDL and
-[backend/.env.example](backend/.env.example) for local (non-Docker) config.
-For local dev against the backend, run the API (`uvicorn app.main:app --reload`
-from `backend/`) and `VITE_API_BASE=http://localhost:8000 npm run dev`.
+Backend details and running it standalone: [backend/](backend/) — see
+[backend/.env.example](backend/.env.example) for local config. For local dev
+against the backend, run the API (`./mvnw spring-boot:run` from `backend/`) and
+`VITE_API_BASE=http://localhost:8000 npm run dev`.
 
-## Host it as a static site (single-user, no backend)
+### Security model (hosted web app)
 
-```bash
-npm run build      # outputs a static site to dist/
-```
+- **In transit:** every `/api` request/response body is encrypted end-to-end
+  (server RSA public key wraps a per-request AES-256 key; bodies are AES-GCM). So
+  even the register payload is ciphertext in the network tab. Sessions use **JWT**.
+- **At rest:** each user's **API key** and their question/option/answer/notes
+  content are AES-GCM encrypted in Postgres; passwords are BCrypt-hashed.
+- **Isolation:** all data is scoped to the authenticated user.
+- Serve behind **HTTPS** in production (browser WebCrypto requires a secure
+  context; localhost is exempt for local dev).
 
-Deploy the `dist/` folder to any static host (Netlify, Vercel, GitHub Pages, S3,
-Cloudflare Pages, …). No server, database, or secrets to manage — the app is HTML
-+ JS + CSS. Serve it over **HTTPS** (required for the browser→provider calls and
-for `localStorage` to persist reliably).
-
-### Privacy / security model
-
-- **API keys** are stored only in the visitor's `localStorage` and sent
-  **directly to the chosen AI provider** — they never reach your host. You never
-  see or store anyone's key.
-- **Courses, answers, and the archive** are stored only in the visitor's
-  `localStorage` — per-browser, never uploaded.
-- Because the browser calls the provider directly, the provider must allow
-  cross-origin (CORS) browser requests: **Gemini** and **Claude** do (Claude via
-  the `anthropic-dangerous-direct-browser-access` header, already sent).
-  **OpenAI/ChatGPT** may block direct browser calls depending on account/region;
-  if a user hits a CORS error with ChatGPT, they should use Gemini or Claude.
+The **desktop apps** are the single-user, no-backend mode: keys and data live only
+in the app's `localStorage`, and the AI request goes straight to the provider.
 
 ## Build desktop executables
 

@@ -6,8 +6,9 @@ import {
   DELIM,
   QUIZ_HEADER,
 } from './prompt.js'
-import { IS_DESKTOP } from './mode.js'
-import { apiFetch } from './auth.js'
+import { IS_DESKTOP, API_BASE } from './mode.js'
+import { getToken } from './auth.js'
+import { prepareRequest, decryptEnvelope, decryptChunk } from './crypto.js'
 
 export async function regenerateSection(params, cred, onProgress) {
   const text = await streamGenerate(buildSectionNotesPrompt(params), cred, onProgress)
@@ -71,18 +72,44 @@ async function streamGenerate(prompt, cred, onProgress) {
 }
 
 async function streamRemote(prompt, cred, onProgress) {
-  const res = await apiFetch('/api/generate', {
-    method: 'POST',
-    body: JSON.stringify({ prompt, provider: cred && cred.provider }),
-  })
+  const { headers, body, aesKey } = await prepareRequest({ prompt, provider: cred && cred.provider })
+  const token = getToken()
+  if (token) headers.Authorization = 'Bearer ' + token
+  const res = await fetch(API_BASE + '/api/generate', { method: 'POST', headers, body })
+  const encrypted = res.headers.get('X-Enc') === '1'
+  if (!res.ok) {
+    let t = await res.text()
+    if (encrypted) t = await decryptEnvelope(aesKey, t)
+    let msg = 'Generation failed'
+    try {
+      const data = JSON.parse(t)
+      if (data && data.detail) msg = data.detail
+    } catch {
+      void 0
+    }
+    throw new Error(msg)
+  }
   const reader = res.body.getReader()
   const decoder = new TextDecoder()
+  let buf = ''
   let text = ''
   while (true) {
     const { done, value } = await reader.read()
     if (done) break
-    text += decoder.decode(value, { stream: true })
-    if (onProgress) onProgress(text.length)
+    if (encrypted) {
+      buf += decoder.decode(value, { stream: true })
+      let nl
+      while ((nl = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, nl).trim()
+        buf = buf.slice(nl + 1)
+        if (!line) continue
+        text += await decryptChunk(aesKey, line)
+        if (onProgress) onProgress(text.length)
+      }
+    } else {
+      text += decoder.decode(value, { stream: true })
+      if (onProgress) onProgress(text.length)
+    }
   }
   if (text.startsWith('[ERROR] ')) throw new Error(text.slice(8).trim())
   return text
