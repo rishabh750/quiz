@@ -117,7 +117,11 @@ async function createWindow() {
     width: 1100,
     height: 800,
     title: 'InterviewPrep',
-    webPreferences: { contextIsolation: true, nodeIntegration: false },
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      preload: path.join(__dirname, 'preload.cjs'),
+    },
   })
 
   win.webContents.setWindowOpenHandler(({ url }) => {

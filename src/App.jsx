@@ -4,6 +4,7 @@ import Header from './components/Header.jsx'
 import Quiz from './components/Quiz.jsx'
 import Notes from './components/Notes.jsx'
 import ArchiveModal from './components/ArchiveModal.jsx'
+import AuthModal from './components/AuthModal.jsx'
 import {
   getCourses,
   getQuestions,
@@ -14,15 +15,11 @@ import {
   getArchive,
   archiveCourse,
   reviveCourse,
+  purgeCourse,
 } from './api.js'
-
-const readFileText = (file) =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result)
-    reader.onerror = reject
-    reader.readAsText(file)
-  })
+import { IS_DESKTOP } from './mode.js'
+import { isAuthed, fetchMe, logout } from './auth.js'
+import { setWebSession } from './session.js'
 
 export default function App() {
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light')
@@ -35,17 +32,43 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [archive, setArchive] = useState(null)
   const [navOpen, setNavOpen] = useState(false)
+  const [authed, setAuthed] = useState(IS_DESKTOP || isAuthed())
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
     localStorage.setItem('theme', theme)
   }, [theme])
 
+  const loadCourses = useCallback(() => {
+    getCourses()
+      .then((list) => {
+        setCourses(list)
+        setActive((cur) => cur ?? list[0] ?? null)
+      })
+      .catch(() => {})
+  }, [])
+
   useEffect(() => {
-    getCourses().then((list) => {
-      setCourses(list)
-      setActive((cur) => cur ?? list[0] ?? null)
-    })
+    if (!authed) return
+    if (!IS_DESKTOP) {
+      fetchMe()
+        .then((me) => setWebSession({ provider: me.provider, hasKey: me.has_api_key, email: me.email }))
+        .catch(() => {})
+    }
+    loadCourses()
+  }, [authed, loadCourses])
+
+  const onAuthed = useCallback(async () => {
+    const me = await fetchMe()
+    setWebSession({ provider: me.provider, hasKey: me.has_api_key, email: me.email })
+    setAuthed(true)
+  }, [])
+
+  const onLogout = useCallback(() => {
+    logout()
+    setCourses([])
+    setActive(null)
+    setAuthed(false)
   }, [])
 
   useEffect(() => {
@@ -117,6 +140,17 @@ export default function App() {
     setActive((cur) => cur ?? list[0] ?? null)
   }, [])
 
+  const handlePurge = useCallback(async (course) => {
+    if (
+      !window.confirm(
+        `Permanently delete "${course}"?\n\nIts quiz, notes, and answers will be erased for good — this cannot be undone.`
+      )
+    )
+      return
+    const { archive: remaining } = await purgeCourse(course)
+    setArchive(remaining)
+  }, [])
+
   const saveFiles = useCallback(async (files) => {
     let firstQuiz = null
     for (const f of files) {
@@ -132,19 +166,6 @@ export default function App() {
       setActive((cur) => cur ?? list[0] ?? null)
     }
   }, [])
-
-  const handleUpload = useCallback(
-    async (fileObjects) => {
-      const files = await Promise.all(
-        fileObjects.map(async (file) => ({
-          filename: file.name,
-          content: await readFileText(file),
-        }))
-      )
-      await saveFiles(files)
-    },
-    [saveFiles]
-  )
 
   const handleRegenerateNotes = useCallback(
     async (content) => {
@@ -165,6 +186,8 @@ export default function App() {
     },
     [active]
   )
+
+  if (!authed) return <AuthModal onAuthed={onAuthed} />
 
   return (
     <div className={'app' + (navOpen ? ' nav-open' : '')}>
@@ -187,15 +210,14 @@ export default function App() {
           answers={answers}
           theme={theme}
           onToggleTheme={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}
-          onUpload={handleUpload}
           onGenerated={saveFiles}
           onToggleNav={() => setNavOpen((o) => !o)}
+          onLogout={IS_DESKTOP ? null : onLogout}
         />
         <section className="content">
           {!active ? (
             <p className="muted">
-              No courses yet. Tap <strong>✨ Generate</strong> to create one, or{' '}
-              <strong>+ Add</strong> to import a <code>.txt</code> quiz file.
+              No courses yet. Tap <strong>✨ Generate</strong> to create one.
             </p>
           ) : loading ? (
             <p className="muted">Loading…</p>
@@ -222,6 +244,7 @@ export default function App() {
         <ArchiveModal
           courses={archive}
           onRevive={handleRevive}
+          onPurge={handlePurge}
           onClose={() => setArchive(null)}
         />
       )}

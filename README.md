@@ -10,6 +10,14 @@ provider** — nothing is stored on or routed through the host. That means it
 deploys as a plain static site, and each visitor's courses, answers, and API key
 stay private to their browser.
 
+## Documentation
+
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — high-level FE / BE / Docker architecture (UML diagrams).
+- [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) — run and develop locally (both modes).
+- [docs/DESKTOP.md](docs/DESKTOP.md) — build the macOS / Windows desktop apps.
+- [docs/DOCKER.md](docs/DOCKER.md) — host the multi-user web app (backend + Postgres + UI).
+- [docs/VERCEL.md](docs/VERCEL.md) — deploy the web app to Vercel (static UI + Python function + managed Postgres).
+
 ## Prerequisites
 
 - **Node.js 18+** (Node 22 recommended) and npm.
@@ -28,7 +36,44 @@ npm run dev
 
 Open the printed URL (default http://localhost:5173).
 
-## Host it (static site)
+## Two deployment modes
+
+- **Hosted web app (multi-user):** a **FastAPI + PostgreSQL** backend ([backend/](backend/))
+  with accounts. Each user's API key and their questions/notes are **encrypted at
+  rest** (Fernet); answers are per-user. The frontend shows a login/register
+  landing (register picks the AI model + key). Ship it all with Docker Compose.
+- **Desktop apps (macOS/Windows):** unchanged — single-user, everything in the
+  app's own `localStorage`, no accounts. The same React UI runs in both; it picks
+  the backend automatically (`window.IS_DESKTOP` set by the Electron preload).
+
+## Host it with Docker (backend + Postgres + UI)
+
+One command — Postgres (internal), the app container that serves the API and UI,
+auto-generated secrets, and a seeded default account:
+
+```bash
+docker compose up --build -d
+```
+
+Open http://localhost:8000 and log in with **`admin@interviewprep.app` /
+`interviewprep`**, then set your API key under **Profile** (top-left 👤). No `.env`
+or secret generation needed — the encryption key and JWT secret are generated and
+persisted to a volume on first run. Put a TLS terminator (Caddy/Nginx/your PaaS) in
+front for HTTPS. Full details, overrides, and production notes: [docs/DOCKER.md](docs/DOCKER.md).
+
+## Deploy to Vercel
+
+Static UI + FastAPI Python function + managed Postgres. Import the repo, attach a
+Vercel Postgres database, set one env var (`APP_ENCRYPTION_KEY`), and deploy — see
+[docs/VERCEL.md](docs/VERCEL.md).
+
+Backend details, schema, and running it standalone: [backend/](backend/) — see
+[backend/schema.sql](backend/schema.sql) for the DDL and
+[backend/.env.example](backend/.env.example) for local (non-Docker) config.
+For local dev against the backend, run the API (`uvicorn app.main:app --reload`
+from `backend/`) and `VITE_API_BASE=http://localhost:8000 npm run dev`.
+
+## Host it as a static site (single-user, no backend)
 
 ```bash
 npm run build      # outputs a static site to dist/

@@ -1,8 +1,12 @@
 import { useRef, useState } from 'react'
 import { generateCourse } from '../gemini.js'
 import { openExternal } from '../openExternal.js'
-import { PROVIDERS, PROVIDER_IDS, getProvider, setProvider, getKey, setKey } from '../providers.js'
+import { PROVIDERS, getProvider, setProvider, getKey, setKey } from '../providers.js'
+import { IS_DESKTOP } from '../mode.js'
+import { updateAccount } from '../auth.js'
+import { cred, hasKey, setWebSession, currentEmail } from '../session.js'
 import GenerateModal from './GenerateModal.jsx'
+import ProfileModal from './ProfileModal.jsx'
 
 export default function Header({
   course,
@@ -10,21 +14,19 @@ export default function Header({
   answers,
   theme,
   onToggleTheme,
-  onUpload,
   onGenerated,
   onToggleNav,
+  onLogout,
 }) {
-  const fileRef = useRef(null)
-  const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState(null)
   const [generating, setGenerating] = useState(false)
   const [progress, setProgress] = useState({ chars: 0, secs: 0 })
   const timerRef = useRef(null)
   const [showGen, setShowGen] = useState(false)
-  const [provider, setProviderState] = useState(getProvider())
-  const [apiKey, setApiKeyState] = useState(() => getKey(getProvider()))
-  const [showKey, setShowKey] = useState(false)
-  const [keyDraft, setKeyDraft] = useState('')
+  const [provider, setProviderState] = useState(IS_DESKTOP ? getProvider() : cred().provider)
+  const [keyPresent, setKeyPresent] = useState(hasKey())
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [showProfile, setShowProfile] = useState(false)
 
   const attempted = answers.length
   const correct = answers.reduce((sum, a) => sum + (Number(a.marks) || 0), 0)
@@ -36,44 +38,38 @@ export default function Header({
     if (ms) setTimeout(() => setStatus(null), ms)
   }
 
-  const handleFiles = async (e) => {
-    const files = [...e.target.files]
-    e.target.value = ''
-    if (files.length === 0) return
-    setBusy(true)
-    try {
-      await onUpload(files)
-    } finally {
-      setBusy(false)
+  const saveCredentials = async (prov, k) => {
+    const key = k.trim()
+    if (IS_DESKTOP) {
+      setProvider(prov)
+      if (key) setKey(prov, key)
+      setProviderState(prov)
+      setKeyPresent(!!getKey(prov))
+      return
     }
+    const patch = { provider: prov }
+    if (key) patch.apiKey = key
+    const me = await updateAccount(patch)
+    setWebSession({ provider: me.provider, hasKey: me.has_api_key })
+    setProviderState(me.provider)
+    setKeyPresent(me.has_api_key)
   }
 
-  const openKeyModal = () => {
-    setKeyDraft(getKey(provider))
-    setShowKey(true)
+  const openProfile = () => {
+    setMenuOpen(false)
+    setShowProfile(true)
+  }
+
+  const openKeyFlow = () => {
+    setMenuOpen(false)
     openExternal(PROVIDERS[provider].keyUrl)
-  }
-
-  const chooseProvider = (p) => {
-    setProviderState(p)
-    setProvider(p)
-    setApiKeyState(getKey(p))
-    setKeyDraft(getKey(p))
-    openExternal(PROVIDERS[p].keyUrl)
-  }
-
-  const saveKey = () => {
-    const k = keyDraft.trim()
-    setKey(provider, k)
-    setApiKeyState(k)
-    setShowKey(false)
+    setShowProfile(true)
   }
 
   const handleGenerate = async (params) => {
     if (generating) return
-    const key = getKey(provider)
-    if (!key) {
-      openKeyModal()
+    if (!hasKey()) {
+      openKeyFlow()
       return
     }
     setShowGen(false)
@@ -85,11 +81,11 @@ export default function Header({
       setProgress((p) => ({ ...p, secs: Math.round((Date.now() - start) / 1000) }))
     }, 250)
     try {
-      const files = await generateCourse(params, { provider, apiKey: key }, (chars) =>
+      const files = await generateCourse(params, cred(), (chars) =>
         setProgress((p) => ({ ...p, chars }))
       )
       await onGenerated(files)
-      flash('info', `Saved ${files.map((f) => f.filename).join(' + ')} to the course folder`)
+      flash('info', `Saved ${files.map((f) => f.filename).join(' + ')}`)
     } catch (err) {
       flash('error', err.message || 'Generation failed', 6000)
     } finally {
@@ -104,6 +100,40 @@ export default function Header({
         <button className="nav-toggle" onClick={onToggleNav} title="Menu" aria-label="Toggle menu">
           ☰
         </button>
+
+        <div className="profile-wrap">
+          <button
+            type="button"
+            className="icon-btn profile-btn"
+            title="Account"
+            aria-label="Account menu"
+            onClick={() => setMenuOpen((o) => !o)}
+          >
+            👤
+          </button>
+          {menuOpen && (
+            <>
+              <div className="menu-backdrop" onClick={() => setMenuOpen(false)} />
+              <div className="profile-menu">
+                <button type="button" onClick={openProfile}>
+                  Profile
+                </button>
+                {onLogout && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false)
+                      onLogout()
+                    }}
+                  >
+                    Log out
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+
         <div className="header-title">{course || 'InterviewPrep'}</div>
 
         <div className="header-center">
@@ -112,11 +142,11 @@ export default function Header({
           </button>
           <button
             type="button"
-            className={'icon-btn key-btn' + (apiKey ? ' on' : '')}
-            title={apiKey ? `${providerLabel} key set — click to change` : `Set ${providerLabel} API key`}
-            onClick={openKeyModal}
+            className={'icon-btn key-btn' + (keyPresent ? ' on' : '')}
+            title={keyPresent ? `${providerLabel} key set — click to change` : `Set ${providerLabel} API key`}
+            onClick={openKeyFlow}
           >
-            {apiKey ? '🔑' : '🔓'}
+            {keyPresent ? '🔑' : '🔓'}
           </button>
         </div>
 
@@ -130,16 +160,6 @@ export default function Header({
             </span>
             <span className="stat pct">{pct}%</span>
           </div>
-
-          <input ref={fileRef} type="file" accept=".txt,.md" multiple hidden onChange={handleFiles} />
-          <button
-            className="add-btn"
-            onClick={() => fileRef.current?.click()}
-            disabled={busy}
-            title="Upload quiz (.txt) or notes (.md) files to the course folder"
-          >
-            {busy ? 'Uploading…' : '+ Add'}
-          </button>
 
           <button className="theme-toggle" onClick={onToggleTheme} title="Toggle theme">
             {theme === 'light' ? '🌙' : '☀️'}
@@ -164,57 +184,22 @@ export default function Header({
 
       {showGen && (
         <GenerateModal
-          hasKey={!!apiKey}
+          hasKey={keyPresent}
           providerLabel={providerLabel}
           onGenerate={handleGenerate}
-          onSetKey={openKeyModal}
+          onSetKey={openKeyFlow}
           onClose={() => setShowGen(false)}
         />
       )}
 
-      {showKey && (
-        <div className="modal-overlay" onClick={() => setShowKey(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>API key</h2>
-            <div className="segmented">
-              {PROVIDER_IDS.map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  className={'seg' + (p === provider ? ' active' : '')}
-                  onClick={() => chooseProvider(p)}
-                >
-                  {PROVIDERS[p].label}
-                </button>
-              ))}
-            </div>
-            <p className="muted small">
-              Opened{' '}
-              <a href={PROVIDERS[provider].keyUrl} target="_blank" rel="noreferrer">
-                {PROVIDERS[provider].label} key page
-              </a>{' '}
-              in your browser — sign in, create a key, and paste it here. Stored only in this
-              browser (localStorage).
-            </p>
-            <input
-              className="topic-input key-input"
-              type="password"
-              placeholder={`Paste your ${providerLabel} API key`}
-              value={keyDraft}
-              autoFocus
-              onChange={(e) => setKeyDraft(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && saveKey()}
-            />
-            <div className="modal-actions">
-              <button className="gen-btn" onClick={() => setShowKey(false)}>
-                Cancel
-              </button>
-              <button className="add-btn" onClick={saveKey}>
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
+      {showProfile && (
+        <ProfileModal
+          email={currentEmail()}
+          initialProvider={provider}
+          keyPresent={keyPresent}
+          onSave={saveCredentials}
+          onClose={() => setShowProfile(false)}
+        />
       )}
     </>
   )

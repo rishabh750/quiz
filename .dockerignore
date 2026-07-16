@@ -1,0 +1,12 @@
+node_modules
+dist
+release
+.git
+.gitignore
+ios
+android
+backend/.venv
+backend/__pycache__
+**/__pycache__
+*.log
+.env

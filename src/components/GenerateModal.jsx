@@ -1,30 +1,28 @@
 import { useState } from 'react'
 
 export default function GenerateModal({ hasKey, providerLabel, onGenerate, onSetKey, onClose }) {
-  const [searchMode, setSearchMode] = useState('generic')
-  const [topics, setTopics] = useState('')
   const [company, setCompany] = useState('')
   const [position, setPosition] = useState('')
   const [round, setRound] = useState('')
+  const [topics, setTopics] = useState('')
   const [count, setCount] = useState(100)
   const [difficulty, setDifficulty] = useState('medium')
   const [mcq, setMcq] = useState(true)
 
-  const specific = searchMode === 'specific'
-  const ready = specific ? company.trim() && position.trim() && round.trim() : topics.trim()
+  const ready = company.trim() && position.trim() && round.trim()
 
   const submit = (e) => {
     e.preventDefault()
     if (!ready) return
-    const common = { count: Number(count) || 100, difficulty, mcq }
-    if (specific) {
-      const c = company.trim()
-      const p = position.trim()
-      const r = round.trim()
-      onGenerate({ ...common, mode: 'specific', company: c, position: p, round: r, topics: `${c} ${p} ${r}` })
-    } else {
-      onGenerate({ ...common, mode: 'generic', topics: topics.trim() })
-    }
+    onGenerate({
+      count: Number(count) || 100,
+      difficulty,
+      mcq,
+      company: company.trim(),
+      position: position.trim(),
+      round: round.trim(),
+      topics: topics.trim(),
+    })
   }
 
   return (
@@ -42,81 +40,54 @@ export default function GenerateModal({ hasKey, providerLabel, onGenerate, onSet
         )}
 
         <form onSubmit={submit}>
-          <div className="field">
-            <span className="field-label">Search mode</span>
-            <div className="segmented">
-              <button
-                type="button"
-                className={'seg' + (!specific ? ' active' : '')}
-                onClick={() => setSearchMode('generic')}
-              >
-                Generic
-              </button>
-              <button
-                type="button"
-                className={'seg' + (specific ? ' active' : '')}
-                onClick={() => setSearchMode('specific')}
-              >
-                Specific
-              </button>
-            </div>
-          </div>
+          <label className="field">
+            <span className="field-label">Company name</span>
+            <input
+              className="topic-input"
+              type="text"
+              placeholder="e.g. Google"
+              value={company}
+              autoFocus
+              onChange={(e) => setCompany(e.target.value)}
+            />
+          </label>
 
-          {specific ? (
-            <>
-              <label className="field">
-                <span className="field-label">Company name</span>
-                <input
-                  className="topic-input"
-                  type="text"
-                  placeholder="e.g. Google"
-                  value={company}
-                  autoFocus
-                  onChange={(e) => setCompany(e.target.value)}
-                />
-              </label>
-              <div className="field-row">
-                <label className="field">
-                  <span className="field-label">Position</span>
-                  <input
-                    className="topic-input"
-                    type="text"
-                    placeholder="e.g. Backend Engineer"
-                    value={position}
-                    onChange={(e) => setPosition(e.target.value)}
-                  />
-                </label>
-                <label className="field">
-                  <span className="field-label">Interview round</span>
-                  <input
-                    className="topic-input"
-                    type="text"
-                    placeholder="e.g. System Design"
-                    value={round}
-                    onChange={(e) => setRound(e.target.value)}
-                  />
-                </label>
-              </div>
-              <span className="field-hint">
-                Questions tailored to that company's specific interview round.
-              </span>
-            </>
-          ) : (
+          <div className="field-row">
             <label className="field">
-              <span className="field-label">Tags / topics (comma-separated)</span>
+              <span className="field-label">Position</span>
               <input
                 className="topic-input"
                 type="text"
-                placeholder="e.g. React, Testing"
-                value={topics}
-                autoFocus
-                onChange={(e) => setTopics(e.target.value)}
+                placeholder="e.g. Backend Engineer"
+                value={position}
+                onChange={(e) => setPosition(e.target.value)}
               />
-              <span className="field-hint">
-                Multiple tags → questions at their intersection. Any subject; focus is interview prep.
-              </span>
             </label>
-          )}
+            <label className="field">
+              <span className="field-label">Interview round</span>
+              <input
+                className="topic-input"
+                type="text"
+                placeholder="e.g. System Design"
+                value={round}
+                onChange={(e) => setRound(e.target.value)}
+              />
+            </label>
+          </div>
+
+          <label className="field">
+            <span className="field-label">Topics (optional, comma-separated)</span>
+            <input
+              className="topic-input"
+              type="text"
+              placeholder="e.g. Caching, Load balancing"
+              value={topics}
+              onChange={(e) => setTopics(e.target.value)}
+            />
+            <span className="field-hint">
+              Narrows the questions to specific topics within that company, role, and round.
+            </span>
+          </label>
 
           <div className="field">
             <span className="field-label">Question type</span>

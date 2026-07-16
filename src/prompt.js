@@ -45,24 +45,39 @@ Structure: H1 title + a 2-sentence intro. H2 sections grouping related concepts.
 Be accurate, well-structured, and concise — no filler. Output ONLY the notes, wrapped in a single \`\`\`markdown code block, and nothing else.`
 }
 
+export function buildSectionNotesPrompt({ topics, section, questions = [] }) {
+  const subject = String(topics || 'the topic').replace(/-/g, ' ').trim()
+  const grounding = questions.length
+    ? `\n\nCover everything needed to answer these questions:\n${questions
+        .map((q, i) => `${i + 1}. ${q.question}`)
+        .join('\n')}`
+    : ''
+  return `Write ONE focused section of interview-prep Markdown study notes about "${subject}", covering the sub-topic "${section}".${grounding}
+
+Begin with a level-2 heading exactly: "## ${section}". Then clear prose (the how and why), bold key terms, concrete examples with language-tagged code blocks where relevant, tables to compare, and "> Note:" callouts for gotchas. Be accurate and concise. Output ONLY that section, wrapped in a single \`\`\`markdown code block.`
+}
+
+export function courseSlug({ company = '', position = '', round = '', topics = '' }) {
+  const parts = [company, position, round, ...parseTags(topics)]
+    .map((s) => String(s).trim())
+    .filter(Boolean)
+  return slugify(parts.join(', ') || 'interview')
+}
+
 export function buildPrompt(opts) {
-  const { topics, count = 100, difficulty = 'medium', mcq = true } = opts
-  const slug = slugify(topics)
+  const { count = 100, difficulty = 'medium', mcq = true } = opts
+  const company = String(opts.company || '').trim()
+  const position = String(opts.position || '').trim()
+  const round = String(opts.round || '').trim()
+  const tags = parseTags(opts.topics)
+  const slug = courseSlug(opts)
   const n = Math.max(1, Math.floor(Number(count) || 100))
 
-  let focus
-  if (opts.mode === 'specific') {
-    const company = String(opts.company || '').trim()
-    const position = String(opts.position || '').trim()
-    const round = String(opts.round || '').trim()
-    focus = `a candidate interviewing at ${company} for the ${position} role — specifically the "${round}" interview round. Target EXACTLY what ${company}'s ${round} round for a ${position} actually asks: the specific topics, question styles, formats, and difficulty that this company and round are known for. Be concrete and ${company}/${round}-specific, not generic; reflect ${company}'s real interview process`
-  } else {
-    const tags = parseTags(topics)
-    focus =
-      tags.length > 1
-        ? `the INTERSECTION of these topics: ${tags.join(', ')}. Every question must require all of them together, not each in isolation`
-        : `${tags[0] || 'the topic'}`
-  }
+  const topicFocus = tags.length
+    ? ` Concentrate specifically on these topics: ${tags.join(', ')} — every question must target them as they apply to this exact role and round, not in isolation.`
+    : ''
+
+  const focus = `a candidate interviewing at ${company} for the ${position} role — specifically the "${round}" interview round. Target EXACTLY what ${company}'s ${round} round for a ${position} actually asks: the real topics, question styles, formats, and difficulty this company and round are known for. Be concrete and ${company}/${round}-specific, never generic; mirror ${company}'s real interview process.${topicFocus}`
 
   const quizSpec = mcq
     ? `${slug}.txt — multiple-choice quiz, using "$$$" (three dollar signs) as the field delimiter (NOT commas):
@@ -74,7 +89,7 @@ First line, verbatim: ${QA_HEADER}
 Then exactly ${n} rows. Fields per row, separated by $$$: section (short sub-theme used to group questions), question number (1..${n}, no gaps), question (an open-ended interview question — no options), answer (a concise but complete model answer a strong candidate would give).
 Do not include any options or a correct-option number. Do not wrap fields in quotes and do not escape anything. Exactly 4 fields per line, no blank lines, no commentary.`
 
-  return `Generate interview-prep study material focused on ${focus}. The subject may be anything (not only CS); target what real interviews for this area test. Difficulty level: ${difficulty.toUpperCase()} — calibrate question hardness accordingly.
+  return `Generate interview-prep study material for ${focus} Difficulty level: ${difficulty.toUpperCase()} — calibrate question hardness accordingly.
 
 Output EXACTLY two fenced code blocks, each preceded by a line with its filename, and nothing else.
 

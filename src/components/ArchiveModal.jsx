@@ -1,16 +1,18 @@
 import { useState } from 'react'
 
-export default function ArchiveModal({ courses, onRevive, onClose }) {
+export default function ArchiveModal({ courses, onRevive, onPurge, onClose }) {
   const [busy, setBusy] = useState(null)
 
-  const revive = async (course) => {
-    setBusy(course)
+  const run = async (course, action, fn) => {
+    setBusy({ course, action })
     try {
-      await onRevive(course)
+      await fn(course)
     } finally {
       setBusy(null)
     }
   }
+
+  const isBusy = (course) => busy && busy.course === course
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -23,9 +25,23 @@ export default function ArchiveModal({ courses, onRevive, onClose }) {
             {courses.map((c) => (
               <li key={c} className="archive-row">
                 <span className="archive-name">{c}</span>
-                <button className="add-btn" disabled={busy === c} onClick={() => revive(c)}>
-                  {busy === c ? 'Reviving…' : 'Revive'}
-                </button>
+                <div className="archive-actions">
+                  <button
+                    className="add-btn"
+                    disabled={isBusy(c)}
+                    onClick={() => run(c, 'revive', onRevive)}
+                  >
+                    {isBusy(c) && busy.action === 'revive' ? 'Reviving…' : 'Revive'}
+                  </button>
+                  <button
+                    className="btn-danger"
+                    disabled={isBusy(c)}
+                    title="Permanently delete this course and its data"
+                    onClick={() => run(c, 'purge', onPurge)}
+                  >
+                    {isBusy(c) && busy.action === 'purge' ? 'Removing…' : 'Remove'}
+                  </button>
+                </div>
               </li>
             ))}
           </ul>

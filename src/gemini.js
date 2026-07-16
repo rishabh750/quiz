@@ -1,4 +1,20 @@
-import { buildPrompt, buildNotesPrompt, slugify, DELIM, QUIZ_HEADER } from './prompt.js'
+import {
+  buildPrompt,
+  buildNotesPrompt,
+  buildSectionNotesPrompt,
+  courseSlug,
+  DELIM,
+  QUIZ_HEADER,
+} from './prompt.js'
+import { IS_DESKTOP } from './mode.js'
+import { apiFetch } from './auth.js'
+
+export async function regenerateSection(params, cred, onProgress) {
+  const text = await streamGenerate(buildSectionNotesPrompt(params), cred, onProgress)
+  const md = extractNotes(text)
+  if (!md) throw new Error('The model returned no notes')
+  return md
+}
 
 const GEN = {
   gemini: {
@@ -49,7 +65,30 @@ const GEN = {
   },
 }
 
-async function streamGenerate(prompt, { provider, apiKey }, onProgress) {
+async function streamGenerate(prompt, cred, onProgress) {
+  if (!IS_DESKTOP) return streamRemote(prompt, cred, onProgress)
+  return streamDirect(prompt, cred, onProgress)
+}
+
+async function streamRemote(prompt, cred, onProgress) {
+  const res = await apiFetch('/api/generate', {
+    method: 'POST',
+    body: JSON.stringify({ prompt, provider: cred && cred.provider }),
+  })
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let text = ''
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    text += decoder.decode(value, { stream: true })
+    if (onProgress) onProgress(text.length)
+  }
+  if (text.startsWith('[ERROR] ')) throw new Error(text.slice(8).trim())
+  return text
+}
+
+async function streamDirect(prompt, { provider, apiKey }, onProgress) {
   const gen = GEN[provider] || GEN.gemini
   const m = gen.model
   let res
@@ -112,7 +151,7 @@ export async function generateCourse(params, cred, onProgress) {
   const { quiz, notes } = parseGenerated(text)
   if (!quiz) throw new Error('Could not find the quiz in the model output')
 
-  const slug = slugify(params.topics)
+  const slug = courseSlug(params)
   const files = [{ filename: slug + '.txt', content: quiz }]
   if (notes) files.push({ filename: slug + '.md', content: notes })
   return files
