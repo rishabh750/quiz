@@ -1,9 +1,13 @@
 .DS_Store
 .claude/
 .env
+.vercel
 
-# Java
-target/
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
 
 # UI
 ui/node_modules/

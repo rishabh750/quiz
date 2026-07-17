@@ -1,29 +1,36 @@
 # InterviewPrep
 
 A study/quiz app: MCQ **and** open-ended quizzes + markdown notes, generated on
-demand via **Gemini, Claude, or ChatGPT**. React UI, Spring Boot (Java 21) API.
+demand via **Gemini, Claude, or ChatGPT**. React UI, Python **FastAPI** API.
 
-> **POC:** data is stored in-memory (H2) — it is **not persisted** across restarts.
+> **POC:** data is kept **in-memory** — it is **not persisted** across restarts,
+> and each serverless instance has its own copy (see [Deploy](#deploy-to-vercel)).
 
 ## Structure
 
 ```
-/                 Spring Boot API (Java 21) + Dockerfile   ← repo root
-  pom.xml, mvnw, .mvn/
-  src/main/java/com/interviewprep/   controllers, security, crypto, services, model
-  src/main/resources/application.yml
-  Dockerfile
+/                 FastAPI backend (Python)              ← repo root
+  server/         app package: config, store, security, crypto, llm, quiz, routers/
+  api/index.py    Vercel serverless entrypoint (exports the ASGI app)
+  requirements.txt
+  vercel.json
 ui/               React + Vite frontend
   src/  index.html  package.json  vite.config.js
-docs/             architecture notes
+docs/             architecture + backend notes
 ```
+
+The frontend is a **static** build served by Vercel's CDN; the backend runs as a
+**Python serverless function**. They ship from the same repo but deploy as two
+separate outputs — no container, no server to keep running.
 
 ## Run locally
 
-**API** (root) — serves on :8000, seeds a default account, in-memory DB:
+**API** — in-memory store, seeds a default account, serves on :8000:
 
 ```bash
-./mvnw spring-boot:run
+python3 -m venv .venv && . .venv/bin/activate
+pip install -r requirements.txt
+uvicorn server.app:app --reload --port 8000
 ```
 
 **UI** (dev, hot reload) — point it at the API:
@@ -34,52 +41,42 @@ npm install
 VITE_API_BASE=http://localhost:8000 npm run dev     # http://localhost:5173
 ```
 
-Or build the UI and let the API serve it from one origin:
-
-```bash
-cd ui && npm run build && cd ..
-STATIC_DIR=ui/dist ./mvnw spring-boot:run            # UI + API on :8000
-```
-
 Log in with the seeded account **`admin@interviewprep.app` / `interviewprep`**,
 then set your provider API key under **Profile** (👤).
 
-## Run with Docker (one container: UI + API)
+## Deploy to Vercel
 
-```bash
-docker build -t interviewprep .
-docker run -p 8000:8000 interviewprep
-```
+Import the repo as a Vercel project — no extra setup. Vercel reads
+[vercel.json](vercel.json): it builds the UI to `ui/dist` (served as static) and
+deploys [api/index.py](api/index.py) as a Python function. The UI calls `/api/*`
+on the **same origin**, so there's no CORS and no `VITE_API_BASE` in production.
 
-Open http://localhost:8000. The image builds the UI, packages the API, and serves
-both on port 8000 — no database, no external services.
+Optional env (all have defaults — see [.env.example](.env.example)):
+`JWT_SECRET`, `RSA_PRIVATE_KEY`, `DEFAULT_USER_*`.
 
-## Deploy to Vercel (single container)
-
-Deploy the repo as a **container** project — Vercel builds the `Dockerfile` and runs
-it; Spring Boot serves the UI at `/` and the API at `/api` (same origin, so no CORS
-or `VITE_API_BASE` needed). Optional env: `JWT_SECRET`, `DEFAULT_USER_*` (see
-[.env.example](.env.example)).
-
-Caveats:
-- **No persistence** — every redeploy/restart wipes all data; only the default
+Caveats (inherent to in-memory + serverless):
+- **No persistence** — a redeploy or cold start wipes all data; only the default
   account re-seeds. Fine for a POC.
-- **In-memory is per-instance** — if Vercel runs more than one instance, data won't
-  be shared. Keep it single-instance.
-- **Startup timeout** — Vercel gives the container 15s to bind `$PORT`. The
-  `Dockerfile` launches the JVM with `-Djava.security.egd=file:/dev/./urandom`
-  (so RSA/JWT key generation can't block on `/dev/random`) plus
-  `-XX:TieredStopAtLevel=1 -XX:+UseSerialGC` to trim cold start — it binds in ~5s.
+- **Per-instance state** — registered accounts and courses live only on the
+  instance that created them. Low-traffic Vercel usually keeps one warm instance,
+  so it works, but it is not multi-instance safe. Set **`JWT_SECRET`** (and ideally
+  **`RSA_PRIVATE_KEY`**) so sessions and the transport keypair are stable across
+  instances/restarts.
+- **Generation timeout** — `/api/generate` streams from the LLM; `vercel.json`
+  sets `maxDuration` to 60s. Long generations may need a higher limit (plan-gated).
 
 ## Security model
 
-- **In transit:** every `/api` request/response body is encrypted end-to-end (server
-  RSA public key wraps a per-request AES-256 key; bodies are AES-GCM), so payloads —
-  including register — are ciphertext in the network tab. Needs a **secure context**
-  (HTTPS or `http://localhost`); over plain remote HTTP it transparently falls back
-  to plaintext.
+- **In transit:** every `/api` request/response body is encrypted end-to-end (the
+  server publishes an RSA public key; the client wraps a per-request AES-256 key
+  with RSA-OAEP-SHA256 and encrypts the body with AES-GCM), so payloads —
+  including register — are ciphertext in the browser network tab. Needs a **secure
+  context** (HTTPS or `http://localhost`); over plain remote HTTP the client
+  transparently falls back to plaintext.
 - **Sessions:** JWT (HS256). **Passwords:** BCrypt.
 - Data is in-memory only, so there's no at-rest storage to encrypt.
+- Provider API keys stay **server-side**; generation is proxied so the key never
+  reaches the browser.
 
 ## Providers
 
