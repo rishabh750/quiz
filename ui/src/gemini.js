@@ -6,72 +6,13 @@ import {
   DELIM,
   QUIZ_HEADER,
 } from './prompt.js'
-import { IS_DESKTOP, API_BASE } from './mode.js'
+import { API_BASE } from './config.js'
 import { getToken } from './auth.js'
 import { prepareRequest, decryptEnvelope, decryptChunk } from './crypto.js'
 
-export async function regenerateSection(params, cred, onProgress) {
-  const text = await streamGenerate(buildSectionNotesPrompt(params), cred, onProgress)
-  const md = extractNotes(text)
-  if (!md) throw new Error('The model returned no notes')
-  return md
-}
-
-const GEN = {
-  gemini: {
-    model: 'gemini-2.5-flash',
-    url: (m) =>
-      'https://generativelanguage.googleapis.com/v1beta/models/' +
-      encodeURIComponent(m) +
-      ':streamGenerateContent?alt=sse',
-    headers: (key) => ({ 'Content-Type': 'application/json', 'x-goog-api-key': key }),
-    body: (prompt, m) => {
-      const generationConfig = { temperature: 0.6, maxOutputTokens: 32768 }
-      if (/2\.5/.test(m)) generationConfig.thinkingConfig = { thinkingBudget: 0 }
-      return { contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig }
-    },
-    delta: (o) =>
-      ((o.candidates && o.candidates[0] && o.candidates[0].content && o.candidates[0].content.parts) || [])
-        .map((p) => p.text || '')
-        .join(''),
-  },
-  openai: {
-    model: 'gpt-4o',
-    url: () => 'https://api.openai.com/v1/chat/completions',
-    headers: (key) => ({ 'Content-Type': 'application/json', Authorization: 'Bearer ' + key }),
-    body: (prompt, m) => ({
-      model: m,
-      stream: true,
-      max_tokens: 16384,
-      messages: [{ role: 'user', content: prompt }],
-    }),
-    delta: (o) => (o.choices && o.choices[0] && o.choices[0].delta && o.choices[0].delta.content) || '',
-  },
-  anthropic: {
-    model: 'claude-sonnet-5',
-    url: () => 'https://api.anthropic.com/v1/messages',
-    headers: (key) => ({
-      'Content-Type': 'application/json',
-      'x-api-key': key,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true',
-    }),
-    body: (prompt, m) => ({
-      model: m,
-      stream: true,
-      max_tokens: 32000,
-      messages: [{ role: 'user', content: prompt }],
-    }),
-    delta: (o) => (o.type === 'content_block_delta' && o.delta && o.delta.text) || '',
-  },
-}
-
+// Generation is always proxied through the backend (POST /api/generate), which holds
+// the account's provider key and streams the model output back encrypted.
 async function streamGenerate(prompt, cred, onProgress) {
-  if (!IS_DESKTOP) return streamRemote(prompt, cred, onProgress)
-  return streamDirect(prompt, cred, onProgress)
-}
-
-async function streamRemote(prompt, cred, onProgress) {
   const { headers, body, aesKey } = await prepareRequest({ prompt, provider: cred && cred.provider })
   const token = getToken()
   if (token) headers.Authorization = 'Bearer ' + token
@@ -115,50 +56,11 @@ async function streamRemote(prompt, cred, onProgress) {
   return text
 }
 
-async function streamDirect(prompt, { provider, apiKey }, onProgress) {
-  const gen = GEN[provider] || GEN.gemini
-  const m = gen.model
-  let res
-  try {
-    res = await fetch(gen.url(m), {
-      method: 'POST',
-      headers: gen.headers(apiKey),
-      body: JSON.stringify(gen.body(prompt, m)),
-    })
-  } catch {
-    throw new Error('Could not reach the provider from the browser (network or CORS).')
-  }
-  if (!res.ok || !res.body) {
-    const data = await res.json().catch(() => ({}))
-    throw new Error((data.error && data.error.message) || 'Generation failed')
-  }
-  const reader = res.body.getReader()
-  const decoder = new TextDecoder()
-  let buf = ''
-  let text = ''
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    buf += decoder.decode(value, { stream: true })
-    let nl
-    while ((nl = buf.indexOf('\n')) >= 0) {
-      const line = buf.slice(0, nl).trim()
-      buf = buf.slice(nl + 1)
-      if (!line.startsWith('data:')) continue
-      const payload = line.slice(5).trim()
-      if (!payload || payload === '[DONE]') continue
-      try {
-        const t = gen.delta(JSON.parse(payload))
-        if (t) {
-          text += t
-          if (onProgress) onProgress(text.length)
-        }
-      } catch {
-        void 0
-      }
-    }
-  }
-  return text
+export async function regenerateSection(params, cred, onProgress) {
+  const text = await streamGenerate(buildSectionNotesPrompt(params), cred, onProgress)
+  const md = extractNotes(text)
+  if (!md) throw new Error('The model returned no notes')
+  return md
 }
 
 export async function regenerateNotes(params, cred, onProgress) {

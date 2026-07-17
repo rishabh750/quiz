@@ -17,9 +17,8 @@ import {
   reviveCourse,
   purgeCourse,
 } from './api.js'
-import { IS_DESKTOP } from './mode.js'
 import { isAuthed, fetchMe, logout } from './auth.js'
-import { setWebSession } from './session.js'
+import { setSession } from './session.js'
 
 export default function App() {
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light')
@@ -32,7 +31,7 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [archive, setArchive] = useState(null)
   const [navOpen, setNavOpen] = useState(false)
-  const [authed, setAuthed] = useState(IS_DESKTOP || isAuthed())
+  const [authed, setAuthed] = useState(isAuthed())
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -50,17 +49,15 @@ export default function App() {
 
   useEffect(() => {
     if (!authed) return
-    if (!IS_DESKTOP) {
-      fetchMe()
-        .then((me) => setWebSession({ provider: me.provider, hasKey: me.has_api_key, email: me.email }))
-        .catch(() => {})
-    }
+    fetchMe()
+      .then((me) => setSession({ provider: me.provider, hasKey: me.has_api_key, email: me.email }))
+      .catch(() => {})
     loadCourses()
   }, [authed, loadCourses])
 
   const onAuthed = useCallback(async () => {
     const me = await fetchMe()
-    setWebSession({ provider: me.provider, hasKey: me.has_api_key, email: me.email })
+    setSession({ provider: me.provider, hasKey: me.has_api_key, email: me.email })
     setAuthed(true)
   }, [])
 
@@ -212,7 +209,7 @@ export default function App() {
           onToggleTheme={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}
           onGenerated={saveFiles}
           onToggleNav={() => setNavOpen((o) => !o)}
-          onLogout={IS_DESKTOP ? null : onLogout}
+          onLogout={onLogout}
         />
         <section className="content">
           {!active ? (

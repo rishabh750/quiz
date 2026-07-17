@@ -1,4 +1,4 @@
-import { API_BASE } from './mode.js'
+import { API_BASE } from './config.js'
 
 const subtle = typeof crypto !== 'undefined' && crypto.subtle ? crypto.subtle : null
 

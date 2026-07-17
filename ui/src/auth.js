@@ -1,4 +1,4 @@
-import { API_BASE } from './mode.js'
+import { API_BASE } from './config.js'
 import { prepareRequest, decryptEnvelope, resetPublicKey } from './crypto.js'
 
 const TOKEN_KEY = 'ip_token'

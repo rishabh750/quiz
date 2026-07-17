@@ -19,4 +19,7 @@ ENV STATIC_DIR=static SECRET_DIR=/tmp PORT=8000
 COPY --from=build /build/target/app.jar ./app.jar
 COPY --from=frontend /ui/dist ./static
 EXPOSE 8000
-CMD ["java", "-jar", "app.jar"]
+# -Djava.security.egd=…urandom: non-blocking entropy so RSA/JWT key generation
+#   can't stall behind /dev/random on a fresh container (Vercel has a 15s bind limit).
+# TieredStopAtLevel=1 + SerialGC: trim JVM cold-start so Tomcat binds well inside it.
+CMD ["java", "-Djava.security.egd=file:/dev/./urandom", "-XX:TieredStopAtLevel=1", "-XX:+UseSerialGC", "-jar", "app.jar"]

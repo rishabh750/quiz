@@ -66,7 +66,10 @@ Caveats:
   account re-seeds. Fine for a POC.
 - **In-memory is per-instance** — if Vercel runs more than one instance, data won't
   be shared. Keep it single-instance.
-- Boots in ~3.5s (fits Vercel's 15s container startup limit).
+- **Startup timeout** — Vercel gives the container 15s to bind `$PORT`. The
+  `Dockerfile` launches the JVM with `-Djava.security.egd=file:/dev/./urandom`
+  (so RSA/JWT key generation can't block on `/dev/random`) plus
+  `-XX:TieredStopAtLevel=1 -XX:+UseSerialGC` to trim cold start — it binds in ~5s.
 
 ## Security model
 

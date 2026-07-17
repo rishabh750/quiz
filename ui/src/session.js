@@ -1,18 +1,18 @@
-import { IS_DESKTOP } from './mode.js'
-import { PROVIDERS, getProvider, getKey } from './providers.js'
+import { PROVIDERS } from './providers.js'
 
-let webState = { provider: 'gemini', hasKey: false, email: '' }
+// Account state for the signed-in user, hydrated from GET /api/me after auth.
+let state = { provider: 'gemini', hasKey: false, email: '' }
 
-export function setWebSession(s) {
-  webState = { ...webState, ...s }
+export function setSession(s) {
+  state = { ...state, ...s }
 }
 
 export function currentEmail() {
-  return IS_DESKTOP ? '' : webState.email
+  return state.email
 }
 
 export function currentProvider() {
-  return IS_DESKTOP ? getProvider() : webState.provider
+  return state.provider
 }
 
 export function providerLabel() {
@@ -20,13 +20,9 @@ export function providerLabel() {
 }
 
 export function hasKey() {
-  return IS_DESKTOP ? !!getKey(getProvider()) : webState.hasKey
+  return state.hasKey
 }
 
 export function cred() {
-  if (IS_DESKTOP) {
-    const p = getProvider()
-    return { provider: p, apiKey: getKey(p) }
-  }
-  return { provider: webState.provider }
+  return { provider: state.provider }
 }

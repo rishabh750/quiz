@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { PROVIDERS, PROVIDER_IDS } from '../providers.js'
 import { openExternal } from '../openExternal.js'
-import { IS_DESKTOP } from '../mode.js'
 
 export default function ProfileModal({ email, initialProvider, keyPresent, onSave, onClose }) {
   const [provider, setProvider] = useState(initialProvider)
@@ -35,7 +34,7 @@ export default function ProfileModal({ email, initialProvider, keyPresent, onSav
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h2>Profile</h2>
 
-        {!IS_DESKTOP && email && (
+        {email && (
           <p className="muted small">
             Signed in as <strong>{email}</strong>
           </p>
@@ -77,7 +76,7 @@ export default function ProfileModal({ email, initialProvider, keyPresent, onSav
             <a href={PROVIDERS[provider].keyUrl} target="_blank" rel="noreferrer">
               Get a {PROVIDERS[provider].label} key
             </a>
-            . {IS_DESKTOP ? 'Stored only in this browser.' : 'Stored encrypted on the server.'}
+            . Stored encrypted on the server.
           </span>
         </label>
 

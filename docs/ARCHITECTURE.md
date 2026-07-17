@@ -58,7 +58,10 @@ graph LR
 - Multi-stage build: Node builds `ui/dist` → Zulu JDK builds the jar → Zulu JRE runs
   it with the UI copied to `static/`.
 - No database container, no volumes — H2 lives in the JVM. **Restart = data gone.**
-- Boots in ~3.5s (fits Vercel's 15s container startup limit).
+- The JVM starts with non-blocking entropy (`-Djava.security.egd=file:/dev/./urandom`)
+  and cold-start flags (`-XX:TieredStopAtLevel=1 -XX:+UseSerialGC`) so it binds the
+  port in ~5s — inside Vercel's 15s container-startup limit. Without the entropy flag,
+  RSA/JWT key generation can stall on `/dev/random` and miss the window.
 
 ## Flow: encrypted transport (every /api call)
 

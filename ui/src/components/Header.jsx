@@ -1,10 +1,9 @@
 import { useRef, useState } from 'react'
 import { generateCourse } from '../gemini.js'
 import { openExternal } from '../openExternal.js'
-import { PROVIDERS, getProvider, setProvider, getKey, setKey } from '../providers.js'
-import { IS_DESKTOP } from '../mode.js'
+import { PROVIDERS } from '../providers.js'
 import { updateAccount } from '../auth.js'
-import { cred, hasKey, setWebSession, currentEmail } from '../session.js'
+import { cred, hasKey, setSession, currentEmail } from '../session.js'
 import GenerateModal from './GenerateModal.jsx'
 import ProfileModal from './ProfileModal.jsx'
 
@@ -23,7 +22,7 @@ export default function Header({
   const [progress, setProgress] = useState({ chars: 0, secs: 0 })
   const timerRef = useRef(null)
   const [showGen, setShowGen] = useState(false)
-  const [provider, setProviderState] = useState(IS_DESKTOP ? getProvider() : cred().provider)
+  const [provider, setProviderState] = useState(cred().provider)
   const [keyPresent, setKeyPresent] = useState(hasKey())
   const [menuOpen, setMenuOpen] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
@@ -40,17 +39,10 @@ export default function Header({
 
   const saveCredentials = async (prov, k) => {
     const key = k.trim()
-    if (IS_DESKTOP) {
-      setProvider(prov)
-      if (key) setKey(prov, key)
-      setProviderState(prov)
-      setKeyPresent(!!getKey(prov))
-      return
-    }
     const patch = { provider: prov }
     if (key) patch.apiKey = key
     const me = await updateAccount(patch)
-    setWebSession({ provider: me.provider, hasKey: me.has_api_key })
+    setSession({ provider: me.provider, hasKey: me.has_api_key })
     setProviderState(me.provider)
     setKeyPresent(me.has_api_key)
   }
