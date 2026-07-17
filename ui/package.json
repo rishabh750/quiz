@@ -1,0 +1,21 @@
+{
+  "name": "interviewprep-ui",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "InterviewPrep web UI",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "marked": "^14.1.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.2.0",
+    "vite": "^8.0.16"
+  }
+}

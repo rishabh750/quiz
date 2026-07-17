@@ -2,10 +2,8 @@ package com.interviewprep.model;
 
 import java.util.UUID;
 
-import com.interviewprep.crypto.AtRestConverter;
 
 import jakarta.persistence.Column;
-import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
@@ -35,30 +33,24 @@ public class Question {
     @Column(name = "qtype", nullable = false, length = 8)
     private String qtype = "mcq";
 
-    @Convert(converter = AtRestConverter.class)
     @Column(nullable = false, columnDefinition = "text")
     private String question;
 
-    @Convert(converter = AtRestConverter.class)
     @Column(columnDefinition = "text")
     private String option1;
 
-    @Convert(converter = AtRestConverter.class)
     @Column(columnDefinition = "text")
     private String option2;
 
-    @Convert(converter = AtRestConverter.class)
     @Column(columnDefinition = "text")
     private String option3;
 
-    @Convert(converter = AtRestConverter.class)
     @Column(columnDefinition = "text")
     private String option4;
 
     @Column(name = "correct_option")
     private Integer correctOption;
 
-    @Convert(converter = AtRestConverter.class)
     @Column(columnDefinition = "text")
     private String answer;
 

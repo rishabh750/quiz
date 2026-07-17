@@ -1,11 +1,10 @@
-node_modules/
+.DS_Store
 .claude/
-.DS_Store/
-archive/*
-answers/*
-course/*
-release/*
-dist/
-backend/target/
-backend/.secrets/
 .env
+
+# Java
+target/
+
+# UI
+ui/node_modules/
+ui/dist/

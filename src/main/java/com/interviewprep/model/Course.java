@@ -4,11 +4,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-import com.interviewprep.crypto.AtRestConverter;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
-import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
@@ -31,7 +29,6 @@ public class Course {
     @Column(nullable = false, length = 255)
     private String name;
 
-    @Convert(converter = AtRestConverter.class)
     @Column(columnDefinition = "text")
     private String notes;
 

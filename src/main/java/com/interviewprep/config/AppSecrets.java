@@ -11,12 +11,9 @@ import java.security.SecureRandom;
 import java.util.Base64;
 
 import javax.crypto.SecretKey;
-import javax.crypto.spec.SecretKeySpec;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-
-import com.interviewprep.crypto.AtRestKey;
 
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
@@ -36,15 +33,9 @@ public class AppSecrets {
 
     @PostConstruct
     void init() {
-        String encKey = System.getenv("APP_ENCRYPTION_KEY");
-        if (isBlank(encKey)) {
-            encKey = persistedSecret("encryption.key", AppSecrets::randomBase64);
-        }
-        AtRestKey.set(new SecretKeySpec(sha256(encKey), "AES"));
-
         String jwtSecret = System.getenv("JWT_SECRET");
         if (isBlank(jwtSecret)) {
-            jwtSecret = encKey;
+            jwtSecret = persistedSecret("jwt.key", AppSecrets::randomBase64);
         }
         this.jwtKey = Keys.hmacShaKeyFor(sha256(jwtSecret));
 

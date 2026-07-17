@@ -3,10 +3,8 @@ package com.interviewprep.model;
 import java.time.Instant;
 import java.util.UUID;
 
-import com.interviewprep.crypto.AtRestConverter;
 
 import jakarta.persistence.Column;
-import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
@@ -30,7 +28,6 @@ public class User {
     @Column(nullable = false, length = 32)
     private String provider = "gemini";
 
-    @Convert(converter = AtRestConverter.class)
     @Column(name = "api_key", columnDefinition = "text")
     private String apiKey;
 
