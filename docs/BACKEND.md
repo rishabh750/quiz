@@ -26,7 +26,7 @@ Sessions use **JWT** (HS256); passwords are **BCrypt**-hashed.
 
 | Module | Responsibility |
 |--------|----------------|
-| `main.py` | build the app (entrypoint `main:app`), middleware order (gateway-strip → CORS → cipher), seed default user |
+| `main.py` | build the app (entrypoint `main:app`), middleware order (gateway-strip → CORS → cipher) |
 | `config.py` | env-driven settings |
 | `store.py` | in-memory dataclasses + store (users → courses → questions/answers) |
 | `security.py` | BCrypt hashing, JWT create/verify, `current_user` dependency |
@@ -39,7 +39,7 @@ Sessions use **JWT** (HS256); passwords are **BCrypt**-hashed.
 
 ```bash
 pip install -r backend/requirements.txt
-cd backend && uvicorn main:app --reload --port 8000   # :8000, seeds default account
+cd backend && uvicorn main:app --reload --port 8000   # :8000 (register an account)
 ```
 
 ## Endpoints (all under `/api`)
@@ -61,12 +61,14 @@ cd backend && uvicorn main:app --reload --port 8000   # :8000, seeds default acc
 
 | Var | Meaning |
 |-----|---------|
-| `JWT_SECRET` | HS256 secret; random per process if unset (set it for multi-instance / restart stability) |
+| `JWT_SECRET` | HS256 secret; **overrides** the built-in stable default (set your own in prod) |
 | `JWT_EXPIRE_MINUTES` | token lifetime (default 10080 = 7 days) |
-| `RSA_PRIVATE_KEY` | PEM; set to share the transport keypair across instances (else generated per process) |
+| `RSA_PRIVATE_KEY` | PEM; **overrides** the built-in transport keypair (set your own in prod) |
 | `CORS_ORIGINS` | allowed origins when the UI is a separate origin (default `*`) |
-| `DEFAULT_USER_EMAIL` / `_PASSWORD` / `_PROVIDER` / `_API_KEY` | seeded account |
 
-> The RSA transport keypair and JWT secret are per process unless pinned via env.
-> With multiple Vercel instances, set `JWT_SECRET` and `RSA_PRIVATE_KEY` (the UI
-> also re-fetches the public key when a decrypt fails).
+> The JWT secret, RSA transport keypair, and user IDs use **stable built-in
+> defaults**, so tokens and encryption work across serverless instances with zero
+> config. There is **no seeded account** — register one. Because the store is
+> in-memory, that account record (with its courses and any API key set via Profile)
+> lives only on the instance that created it. Override `JWT_SECRET` /
+> `RSA_PRIVATE_KEY` in production; add a persistent store for real multi-instance use.

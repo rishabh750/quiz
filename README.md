@@ -11,7 +11,7 @@ demand via **Gemini, Claude, or ChatGPT**. React UI, Python **FastAPI** API.
 ```
 quiz/
 ├── backend/          FastAPI backend service (entrypoint main:app)
-│   ├── main.py       builds the ASGI app + middleware, seeds the default account
+│   ├── main.py       builds the ASGI app + middleware
 │   ├── config.py store.py security.py crypto.py llm.py quiz.py
 │   ├── routers/      system · auth · account · courses · answers · generate
 │   └── requirements.txt
@@ -27,7 +27,7 @@ Deployed as **two Vercel services** ([vercel.json](vercel.json)): a static
 
 ## Run locally
 
-**Backend** — in-memory store, seeds a default account, serves on :8000:
+**Backend** — in-memory store, serves on :8000:
 
 ```bash
 python3 -m venv .venv && . .venv/bin/activate
@@ -43,8 +43,8 @@ npm install
 VITE_API_BASE=http://localhost:8000 npm run dev     # http://localhost:5173
 ```
 
-Log in with the seeded account **`admin@interviewprep.app` / `interviewprep`**,
-then set your provider API key under **Profile** (👤).
+**Register** an account on first launch, then set your provider API key under
+**Profile** (👤).
 
 > The backend serves routes under `/api/*` and also accepts the gateway's
 > `/svc/api/*` (a middleware strips the `/svc` prefix), so both the deployed
@@ -56,21 +56,19 @@ Import the repo — Vercel reads [vercel.json](vercel.json) and builds the two
 services. In production the frontend calls `/svc/api/*` (the default API base), the
 gateway forwards it to the backend, so there's no CORS.
 
-> **Frontend framework:** the app is **Vite**. Set the frontend service's
-> `framework` to `"vite"` in `vercel.json` (the template ships with `"nextjs"`,
-> which won't build a Vite app).
-
 Optional backend env (all have defaults — see [.env.example](.env.example)):
-`JWT_SECRET`, `RSA_PRIVATE_KEY`, `DEFAULT_USER_*`.
+`JWT_SECRET`, `RSA_PRIVATE_KEY`, `CORS_ORIGINS`.
 
 Caveats (inherent to in-memory + serverless):
-- **No persistence** — a redeploy or cold start wipes all data; only the default
-  account re-seeds. Fine for a POC.
-- **Per-instance state** — registered accounts and courses live only on the
-  instance that created them. Low-traffic Vercel usually keeps one warm instance,
-  so it works, but it is not multi-instance safe. Set **`JWT_SECRET`** (and ideally
-  **`RSA_PRIVATE_KEY`**) so sessions and the transport keypair are stable across
-  instances/restarts.
+- **No persistence** — a redeploy or cold start wipes all data. There is no seeded
+  account; register again after a restart. Fine for a POC.
+- **Accounts are per-instance** — each serverless process has its own memory. Auth
+  and encryption work across instances out of the box (the JWT secret, RSA keypair,
+  and user IDs use stable built-in defaults), but the account *record* you register
+  — with its courses and the API key set in Profile — lives only on the instance
+  that created it, so it's reliable only while one warm instance serves you. A
+  persistent store (DB/KV) is the real fix. Override the built-in `JWT_SECRET` /
+  `RSA_PRIVATE_KEY` with your own values in production.
 - **Generation timeout** — `/api/generate` streams from the LLM; `vercel.json`
   sets `maxDuration` to 60s. Long generations may need a higher limit (plan-gated).
 

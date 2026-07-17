@@ -1,6 +1,6 @@
 """In-memory data store. POC only — data lives in the process and is lost on
-restart. Each Vercel instance has its own copy, so registered accounts are local
-to the instance that created them; the seeded default account exists everywhere."""
+restart. Each Vercel instance has its own copy, so an account (and its courses)
+is local to the instance where it was registered."""
 from __future__ import annotations
 
 import threading
@@ -9,6 +9,16 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
 PROVIDERS = {"gemini", "anthropic", "openai"}
+
+# Derive user IDs deterministically from email so the same account maps to the same
+# id in every process, keeping JWT subjects stable across instances (see security.py
+# / crypto.py for the matching stable secrets). Note: the account *record* still
+# lives only in the instance where it was registered (in-memory, per process).
+_USER_NAMESPACE = uuid.UUID("6a5f6c1e-2b3d-4e5f-8a9b-0c1d2e3f4a5b")
+
+
+def user_id_for(email: str) -> str:
+    return str(uuid.uuid5(_USER_NAMESPACE, email))
 
 
 def normalize_provider(provider: Optional[str]) -> str:
@@ -76,7 +86,7 @@ class Store:
                     api_key: Optional[str]) -> User:
         with self._lock:
             user = User(
-                id=str(uuid.uuid4()),
+                id=user_id_for(email),
                 email=email,
                 password_hash=password_hash,
                 provider=normalize_provider(provider),

@@ -1,12 +1,11 @@
 """Password hashing (BCrypt) and JWT sessions (HS256).
 
-The JWT secret comes from JWT_SECRET when set, otherwise a per-process random
-secret is used. Tokens are only ever verified by this same process, so any
-consistent secret works; set JWT_SECRET in the environment if you run more than
-one instance (or want tokens to survive a restart)."""
+The JWT secret comes from JWT_SECRET when set, otherwise a fixed default is used so
+tokens verify across processes/instances (on Vercel each request can be a fresh
+process; a random per-process secret would reject tokens issued elsewhere). Set
+JWT_SECRET in production."""
 from __future__ import annotations
 
-import secrets
 import time
 
 import bcrypt
@@ -16,7 +15,8 @@ from fastapi import HTTPException, Request
 from config import settings
 from store import User, store
 
-_jwt_secret = settings.jwt_secret or secrets.token_urlsafe(48)
+_DEFAULT_JWT_SECRET = "interviewprep-default-secret-change-in-prod"
+_jwt_secret = settings.jwt_secret or _DEFAULT_JWT_SECRET
 
 
 def hash_password(password: str) -> str:
