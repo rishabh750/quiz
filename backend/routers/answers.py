@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from security import current_user
-from store import Answer, Course, User
+from store import Answer, Course, User, store
 
 router = APIRouter(prefix="/api")
 
@@ -47,6 +47,7 @@ def save_answer(name: str, body: AnswerIn, user: User = Depends(current_user)):
         candidate_answer=str(body.candidateAnswer),
         marks=body.marks or 0,
     )
+    store.save(user)
     return _serialize(course)
 
 
@@ -60,4 +61,5 @@ def reset_answers(name: str, user: User = Depends(current_user),
             course.answers.pop(qnum, None)
     else:
         course.answers.clear()
+    store.save(user)
     return _serialize(course)

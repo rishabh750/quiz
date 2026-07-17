@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from quiz import parse_questions
 from security import current_user
-from store import Course, User
+from store import Course, User, store
 
 router = APIRouter(prefix="/api")
 
@@ -50,6 +50,7 @@ def upload(body: UploadIn, user: User = Depends(current_user)):
     else:
         course.questions = parse_questions(body.content or "")
     course.archived = False
+    store.save(user)
     return {"saved": base}
 
 
@@ -83,6 +84,7 @@ def archive(name: str, user: User = Depends(current_user)):
     if course is not None and not course.archived:
         course.answers.clear()
         course.archived = True
+        store.save(user)
     return {"archived": name, "archive": _names(user, True)}
 
 
@@ -91,6 +93,7 @@ def revive(name: str, user: User = Depends(current_user)):
     course = user.courses.get(name)
     if course is not None and course.archived:
         course.archived = False
+        store.save(user)
     return {"revived": name, "archive": _names(user, True)}
 
 
@@ -99,4 +102,5 @@ def purge(name: str, user: User = Depends(current_user)):
     course = user.courses.get(name)
     if course is not None and course.archived:
         user.courses.pop(name, None)
+        store.save(user)
     return {"purged": name, "archive": _names(user, True)}

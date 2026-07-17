@@ -3,8 +3,8 @@
 A study/quiz app: MCQ **and** open-ended quizzes + markdown notes, generated on
 demand via **Gemini, Claude, or ChatGPT**. React UI, Python **FastAPI** API.
 
-> **POC:** data is kept **in-memory** — it is **not persisted** across restarts,
-> and each serverless instance has its own copy (see [Deploy](#deploy-to-vercel)).
+> Data is stored in **MongoDB** when `MONGODB_URI` is set (required on Vercel), with
+> an in-memory fallback for local dev (see [Deploy](#deploy-to-vercel)).
 
 ## Structure
 
@@ -27,7 +27,7 @@ Deployed as **two Vercel services** ([vercel.json](vercel.json)): a static
 
 ## Run locally
 
-**Backend** — in-memory store, serves on :8000:
+**Backend** — serves on :8000 (uses `MONGODB_URI` if set, else in-memory):
 
 ```bash
 python3 -m venv .venv && . .venv/bin/activate
@@ -56,19 +56,19 @@ Import the repo — Vercel reads [vercel.json](vercel.json) and builds the two
 services. In production the frontend calls `/svc/api/*` (the default API base), the
 gateway forwards it to the backend, so there's no CORS.
 
-Optional backend env (all have defaults — see [.env.example](.env.example)):
+**Persistence:** set **`MONGODB_URI`** so accounts, courses, and answers live in a
+shared database (required on Vercel — serverless runs multiple instances). Vercel's
+MongoDB integration injects this env var automatically. Without it the backend uses
+an in-memory store (fine for local dev; data is lost on restart).
+
+Other backend env (all optional, have defaults — see [.env.example](.env.example)):
 `JWT_SECRET`, `RSA_PRIVATE_KEY`, `CORS_ORIGINS`.
 
-Caveats (inherent to in-memory + serverless):
-- **No persistence** — a redeploy or cold start wipes all data. There is no seeded
-  account; register again after a restart. Fine for a POC.
-- **Accounts are per-instance** — each serverless process has its own memory. Auth
-  and encryption work across instances out of the box (the JWT secret, RSA keypair,
-  and user IDs use stable built-in defaults), but the account *record* you register
-  — with its courses and the API key set in Profile — lives only on the instance
-  that created it, so it's reliable only while one warm instance serves you. A
-  persistent store (DB/KV) is the real fix. Override the built-in `JWT_SECRET` /
-  `RSA_PRIVATE_KEY` with your own values in production.
+Notes:
+- The JWT secret, RSA keypair, and user IDs use stable built-in defaults, so auth
+  and encryption work across instances out of the box. **Override `JWT_SECRET` /
+  `RSA_PRIVATE_KEY`** with your own values in production.
+- There is **no seeded account** — register one on first launch.
 - **Generation timeout** — `/api/generate` streams from the LLM; `vercel.json`
   sets `maxDuration` to 60s. Long generations may need a higher limit (plan-gated).
 
@@ -81,7 +81,8 @@ Caveats (inherent to in-memory + serverless):
   context** (HTTPS or `http://localhost`); over plain remote HTTP the client
   transparently falls back to plaintext.
 - **Sessions:** JWT (HS256). **Passwords:** BCrypt.
-- Data is in-memory only, so there's no at-rest storage to encrypt.
+- Persistence is MongoDB (or in-memory locally); the app does no app-level at-rest
+  encryption — rely on your database's access controls and encryption at rest.
 - Provider API keys stay **server-side**; generation is proxied so the key never
   reaches the browser.
 

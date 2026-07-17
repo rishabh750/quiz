@@ -1,8 +1,8 @@
 # Architecture
 
 React UI + Python **FastAPI** API, deployed as **two Vercel services** (a static
-`frontend/` and a `backend/` ASGI app). **In-memory** store (POC — no persistence).
-Diagrams are Mermaid (render on GitHub).
+`frontend/` and a `backend/` ASGI app). Data is stored in **MongoDB** (shared across
+instances), with an in-memory fallback for local dev. Diagrams are Mermaid.
 
 ## Components
 
@@ -27,7 +27,7 @@ graph TB
     R --> PROXY
   end
 
-  STORE[("in-memory store<br/>users · courses<br/>questions · answers")]
+  STORE[("MongoDB<br/>users (courses<br/>questions · answers<br/>embedded)")]
   PROV["LLM providers<br/>Gemini · Claude · ChatGPT"]
 
   CR -->|encrypted payload + Bearer JWT| GW
@@ -52,20 +52,19 @@ graph LR
     GWY{{"gateway<br/>vercel.json rewrites"}}
     FE["frontend service<br/>static (Vite build)"]
     BE["backend service<br/>main:app (FastAPI)"]
-    MEM[("in-memory<br/>per instance")]
-    BE --- MEM
   end
+  DB[("MongoDB Atlas")]
   User --> GWY
   GWY -->|"/svc/api/*"| BE
   GWY -->|"/(.*)"| FE
+  BE -->|"MONGODB_URI"| DB
 ```
 
 - `vercel.json` defines a `frontend/` service and a `backend/` service; the gateway
   routes `/svc/api/*` to the backend and everything else to the frontend.
-- No container, no database. The store lives in the backend process's memory.
-  **Cold start or redeploy = data gone**, and each instance has its own copy — set
-  `JWT_SECRET` (and ideally `RSA_PRIVATE_KEY`) so tokens and the transport keypair
-  are stable across instances.
+- The backend is stateless — all data lives in **MongoDB** (`MONGODB_URI`), so any
+  instance serves any request. `JWT_SECRET` / `RSA_PRIVATE_KEY` use stable defaults
+  (override in prod) so tokens and the transport keypair work across instances too.
 
 ## Flow: encrypted transport (every /api call)
 
@@ -108,7 +107,8 @@ sequenceDiagram
 
 ## Data model
 
-Every record is scoped to a user; all in-memory (dataclasses in [store.py](../backend/store.py)).
+Every record is scoped to a user. Each user is one MongoDB document with courses
+(and their questions/answers) embedded; see [store.py](../backend/store.py).
 
 ```mermaid
 graph LR

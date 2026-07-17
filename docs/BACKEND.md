@@ -2,9 +2,9 @@
 
 FastAPI app in [backend/](../backend), deployed on Vercel as its own **service**
 (ASGI entrypoint `main:app`, routed via `/svc/api/*` in `vercel.json`) and runnable
-locally with uvicorn. **In-memory** store — a POC that is **not persisted** across
-restarts and is **per instance**. Per-user data (courses, questions, notes,
-answers) is isolated by JWT.
+locally with uvicorn. Data is stored in **MongoDB** when `MONGODB_URI` is set (shared
+across all instances), with an in-memory fallback for local dev. Per-user data
+(courses, questions, notes, answers) is isolated by JWT.
 
 The gateway sends `/svc/api/*` to this service; `GatewayPrefixMiddleware` strips the
 `/svc` prefix so all routes below stay canonical under `/api` (direct/local calls to
@@ -28,7 +28,7 @@ Sessions use **JWT** (HS256); passwords are **BCrypt**-hashed.
 |--------|----------------|
 | `main.py` | build the app (entrypoint `main:app`), middleware order (gateway-strip → CORS → cipher) |
 | `config.py` | env-driven settings |
-| `store.py` | in-memory dataclasses + store (users → courses → questions/answers) |
+| `store.py` | data model + store: `MongoStore` (users → embedded courses/questions/answers) with an `InMemoryStore` fallback |
 | `security.py` | BCrypt hashing, JWT create/verify, `current_user` dependency |
 | `crypto.py` | RSA/AES primitives + payload-encryption middleware |
 | `llm.py` | streaming proxy to Gemini / OpenAI / Anthropic (httpx) |
@@ -61,6 +61,7 @@ cd backend && uvicorn main:app --reload --port 8000   # :8000 (register an accou
 
 | Var | Meaning |
 |-----|---------|
+| `MONGODB_URI` | MongoDB connection string; **required on Vercel** for a shared store (unset → in-memory) |
 | `JWT_SECRET` | HS256 secret; **overrides** the built-in stable default (set your own in prod) |
 | `JWT_EXPIRE_MINUTES` | token lifetime (default 10080 = 7 days) |
 | `RSA_PRIVATE_KEY` | PEM; **overrides** the built-in transport keypair (set your own in prod) |
@@ -68,7 +69,7 @@ cd backend && uvicorn main:app --reload --port 8000   # :8000 (register an accou
 
 > The JWT secret, RSA transport keypair, and user IDs use **stable built-in
 > defaults**, so tokens and encryption work across serverless instances with zero
-> config. There is **no seeded account** — register one. Because the store is
-> in-memory, that account record (with its courses and any API key set via Profile)
-> lives only on the instance that created it. Override `JWT_SECRET` /
-> `RSA_PRIVATE_KEY` in production; add a persistent store for real multi-instance use.
+> config. There is **no seeded account** — register one. With `MONGODB_URI` set, the
+> account and its data are shared across all instances (routers mutate the `User`
+> object and call `store.save(user)`). Override `JWT_SECRET` / `RSA_PRIVATE_KEY` in
+> production.

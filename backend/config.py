@@ -19,5 +19,9 @@ class Settings:
 
         self.cors_origins = _env("CORS_ORIGINS", "*")
 
+        # Persistent store. When set, data is shared across all instances; when
+        # empty, the app uses an in-memory store (local dev / tests).
+        self.mongodb_uri = _env("MONGODB_URI")
+
 
 settings = Settings()

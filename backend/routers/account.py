@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from security import current_user
-from store import PROVIDERS, User
+from store import PROVIDERS, User, store
 
 router = APIRouter(prefix="/api")
 
@@ -29,4 +29,5 @@ def update_account(body: AccountUpdateIn, user: User = Depends(current_user)):
         user.provider = body.provider
     if body.api_key is not None:
         user.api_key = body.api_key.strip() or None
+    store.save(user)
     return _me(user)
