@@ -9,34 +9,36 @@ demand via **Gemini, Claude, or ChatGPT**. React UI, Python **FastAPI** API.
 ## Structure
 
 ```
-/                 FastAPI backend (Python)              ← repo root
-  server/         app package: config, store, security, crypto, llm, quiz, routers/
-  api/index.py    Vercel serverless entrypoint (exports the ASGI app)
-  requirements.txt
-  vercel.json
-ui/               React + Vite frontend
-  src/  index.html  package.json  vite.config.js
-docs/             architecture + backend notes
+quiz/
+├── backend/          FastAPI backend service (entrypoint main:app)
+│   ├── main.py       builds the ASGI app + middleware, seeds the default account
+│   ├── config.py store.py security.py crypto.py llm.py quiz.py
+│   ├── routers/      system · auth · account · courses · answers · generate
+│   └── requirements.txt
+├── frontend/         React + Vite frontend (static build)
+│   └── src/  index.html  package.json  vite.config.js
+├── docs/             architecture + backend notes
+└── vercel.json       two Vercel services: frontend + backend
 ```
 
-The frontend is a **static** build served by Vercel's CDN; the backend runs as a
-**Python serverless function**. They ship from the same repo but deploy as two
-separate outputs — no container, no server to keep running.
+Deployed as **two Vercel services** ([vercel.json](vercel.json)): a static
+`frontend/` and a Python `backend/` (ASGI `main:app`). The gateway routes
+`/svc/api/*` to the backend and everything else to the frontend — no container.
 
 ## Run locally
 
-**API** — in-memory store, seeds a default account, serves on :8000:
+**Backend** — in-memory store, seeds a default account, serves on :8000:
 
 ```bash
 python3 -m venv .venv && . .venv/bin/activate
-pip install -r requirements.txt
-uvicorn server.app:app --reload --port 8000
+pip install -r backend/requirements.txt
+cd backend && uvicorn main:app --reload --port 8000
 ```
 
-**UI** (dev, hot reload) — point it at the API:
+**Frontend** (dev, hot reload) — point it at the backend:
 
 ```bash
-cd ui
+cd frontend
 npm install
 VITE_API_BASE=http://localhost:8000 npm run dev     # http://localhost:5173
 ```
@@ -44,14 +46,21 @@ VITE_API_BASE=http://localhost:8000 npm run dev     # http://localhost:5173
 Log in with the seeded account **`admin@interviewprep.app` / `interviewprep`**,
 then set your provider API key under **Profile** (👤).
 
+> The backend serves routes under `/api/*` and also accepts the gateway's
+> `/svc/api/*` (a middleware strips the `/svc` prefix), so both the deployed
+> gateway and direct local calls work.
+
 ## Deploy to Vercel
 
-Import the repo as a Vercel project — no extra setup. Vercel reads
-[vercel.json](vercel.json): it builds the UI to `ui/dist` (served as static) and
-deploys [api/index.py](api/index.py) as a Python function. The UI calls `/api/*`
-on the **same origin**, so there's no CORS and no `VITE_API_BASE` in production.
+Import the repo — Vercel reads [vercel.json](vercel.json) and builds the two
+services. In production the frontend calls `/svc/api/*` (the default API base), the
+gateway forwards it to the backend, so there's no CORS.
 
-Optional env (all have defaults — see [.env.example](.env.example)):
+> **Frontend framework:** the app is **Vite**. Set the frontend service's
+> `framework` to `"vite"` in `vercel.json` (the template ships with `"nextjs"`,
+> which won't build a Vite app).
+
+Optional backend env (all have defaults — see [.env.example](.env.example)):
 `JWT_SECRET`, `RSA_PRIVATE_KEY`, `DEFAULT_USER_*`.
 
 Caveats (inherent to in-memory + serverless):

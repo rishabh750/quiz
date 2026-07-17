@@ -4,9 +4,9 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from ..quiz import parse_questions
-from ..security import current_user
-from ..store import Course, User
+from quiz import parse_questions
+from security import current_user
+from store import Course, User
 
 router = APIRouter(prefix="/api")
 

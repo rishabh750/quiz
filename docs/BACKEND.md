@@ -1,9 +1,14 @@
 # InterviewPrep API (FastAPI / Python)
 
-FastAPI app at the repo root, deployed on Vercel as a Python serverless function
-([api/index.py](../api/index.py)) and runnable locally with uvicorn. **In-memory**
-store — a POC that is **not persisted** across restarts and is **per instance**.
-Per-user data (courses, questions, notes, answers) is isolated by JWT.
+FastAPI app in [backend/](../backend), deployed on Vercel as its own **service**
+(ASGI entrypoint `main:app`, routed via `/svc/api/*` in `vercel.json`) and runnable
+locally with uvicorn. **In-memory** store — a POC that is **not persisted** across
+restarts and is **per instance**. Per-user data (courses, questions, notes,
+answers) is isolated by JWT.
+
+The gateway sends `/svc/api/*` to this service; `GatewayPrefixMiddleware` strips the
+`/svc` prefix so all routes below stay canonical under `/api` (direct/local calls to
+`/api/*` also work).
 
 Encryption:
 - **In transit** — every `/api` request/response body is end-to-end encrypted so
@@ -11,17 +16,17 @@ Encryption:
   RSA public key; each request carries a fresh AES-256 key (RSA-OAEP-SHA256-wrapped
   in the `X-Enc-Key` header) and an AES-GCM body `{iv, d}`; the response is AES-GCM
   with the same key and marked `X-Enc: 1`. Implemented as an ASGI middleware,
-  [PayloadCipherMiddleware](../server/crypto.py). Falls back to plaintext when the
+  [PayloadCipherMiddleware](../backend/crypto.py). Falls back to plaintext when the
   browser has no Web Crypto (non-secure context).
 - **At rest** — none; data lives only in process memory.
 
 Sessions use **JWT** (HS256); passwords are **BCrypt**-hashed.
 
-## Package layout (`server/`)
+## Package layout (`backend/`)
 
 | Module | Responsibility |
 |--------|----------------|
-| `app.py` | build the app, middleware order (cipher inner, CORS outer), seed default user |
+| `main.py` | build the app (entrypoint `main:app`), middleware order (gateway-strip → CORS → cipher), seed default user |
 | `config.py` | env-driven settings |
 | `store.py` | in-memory dataclasses + store (users → courses → questions/answers) |
 | `security.py` | BCrypt hashing, JWT create/verify, `current_user` dependency |
@@ -33,8 +38,8 @@ Sessions use **JWT** (HS256); passwords are **BCrypt**-hashed.
 ## Run
 
 ```bash
-pip install -r requirements.txt
-uvicorn server.app:app --reload --port 8000        # :8000, seeds default account
+pip install -r backend/requirements.txt
+cd backend && uvicorn main:app --reload --port 8000   # :8000, seeds default account
 ```
 
 ## Endpoints (all under `/api`)

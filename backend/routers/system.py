@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from ..crypto import public_key_b64
+from crypto import public_key_b64
 
 router = APIRouter()
 

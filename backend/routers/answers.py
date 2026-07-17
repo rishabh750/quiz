@@ -3,8 +3,8 @@ from typing import Any, List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from ..security import current_user
-from ..store import Answer, Course, User
+from security import current_user
+from store import Answer, Course, User
 
 router = APIRouter(prefix="/api")
 

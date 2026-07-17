@@ -3,8 +3,8 @@ from typing import Optional
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
-from ..security import current_user
-from ..store import PROVIDERS, User
+from security import current_user
+from store import PROVIDERS, User
 
 router = APIRouter(prefix="/api")
 

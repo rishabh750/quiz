@@ -3,8 +3,8 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from ..security import create_token, hash_password, verify_password
-from ..store import normalize_provider, store
+from security import create_token, hash_password, verify_password
+from store import normalize_provider, store
 
 router = APIRouter(prefix="/api/auth")
 

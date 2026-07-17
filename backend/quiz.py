@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import List
 
-from .store import Question
+from store import Question
 
 
 def _parse_csv_line(line: str) -> List[str]:

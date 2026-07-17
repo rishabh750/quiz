@@ -13,8 +13,8 @@ import bcrypt
 import jwt
 from fastapi import HTTPException, Request
 
-from .config import settings
-from .store import User, store
+from config import settings
+from store import User, store
 
 _jwt_secret = settings.jwt_secret or secrets.token_urlsafe(48)
 
