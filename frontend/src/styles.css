@@ -108,6 +108,9 @@ body {
 .nav-row { gap: 3px; }
 
 .archive-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin-top: 12px;
   width: 100%;
   text-align: left;
@@ -325,6 +328,10 @@ select.topic-input { cursor: pointer; }
   font-weight: 700;
 }
 .add-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
   background: var(--accent);
   border: 1px solid var(--accent);
   color: var(--on-accent);
@@ -335,6 +342,10 @@ select.topic-input { cursor: pointer; }
   font-weight: 600;
   cursor: pointer;
 }
+/* Icons scale with the button's font-size and inherit its color. */
+button svg { flex: none; }
+.gen-btn, .btn-danger { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+.chevron { display: inline-flex; align-items: center; }
 .add-btn:hover:not(:disabled) { filter: brightness(1.08); }
 .add-btn:disabled { opacity: 0.6; cursor: default; }
 .theme-toggle {
@@ -569,8 +580,24 @@ code {
   .header-center { flex: none; }
   .gen-cta { padding: 0 10px; }
   .header-right { gap: 8px; }
-  .score { display: none; }
+  .header-right .score { display: none; }
   .content { padding: 14px; }
   .section-head { flex-wrap: wrap; gap: 8px; }
+  .section-head .score { flex-wrap: wrap; gap: 8px 10px; }
   .genbar { padding: 8px 12px; }
+}
+
+/* Keep long words, tables and code from forcing horizontal page scroll. */
+.q-text, .notes, .qa-answer { overflow-wrap: anywhere; }
+.notes table { display: block; max-width: 100%; overflow-x: auto; }
+
+@media (max-width: 480px) {
+  .header-title { font-size: 15px; }
+  .gen-cta { padding: 0 11px; }
+  .gen-cta .btn-label { display: none; }
+  .section-head .score .stat:not(.pct) { display: none; }
+  .content { padding: 12px; }
+  .modal { padding: 18px 16px; }
+  .card { padding: 16px 16px; }
+  .notes { padding: 8px 16px 20px; }
 }

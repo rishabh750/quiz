@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { saveAnswer } from '../api.js'
+import { IconChevronRight, IconChevronDown, IconRotateCcw } from '../icons.jsx'
 
 function sectionScore(questions, answered) {
   const total = questions.length
@@ -127,7 +128,7 @@ export default function Quiz({ course, questions, answers, onAnswered, onResetSe
                 className="section-toggle"
                 onClick={() => setCollapsed((c) => ({ ...c, [name]: !c[name] }))}
               >
-                <span className="chevron">{isCollapsed ? '▸' : '▾'}</span>
+                <span className="chevron">{isCollapsed ? <IconChevronRight /> : <IconChevronDown />}</span>
                 <span className="section-title">{name}</span>
               </button>
               <span className="score">
@@ -144,7 +145,7 @@ export default function Quiz({ course, questions, answers, onAnswered, onResetSe
                   disabled={s.attempted === 0}
                   onClick={handleSectionReset}
                 >
-                  ↺
+                  <IconRotateCcw />
                 </button>
               </span>
             </div>

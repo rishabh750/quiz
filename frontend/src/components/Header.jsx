@@ -3,6 +3,7 @@ import { generateCourse } from '../generate.js'
 import { PROVIDERS } from '../providers.js'
 import { updateAccount } from '../auth.js'
 import { cred, hasKey, setSession, currentEmail } from '../session.js'
+import { IconMenu, IconUser, IconSparkles, IconKey, IconUnlock, IconMoon, IconSun } from '../icons.jsx'
 import GenerateModal from './GenerateModal.jsx'
 import ProfileModal from './ProfileModal.jsx'
 
@@ -89,7 +90,7 @@ export default function Header({
     <>
       <header className="header">
         <button className="nav-toggle" onClick={onToggleNav} title="Menu" aria-label="Toggle menu">
-          ☰
+          <IconMenu />
         </button>
 
         <div className="profile-wrap">
@@ -100,7 +101,7 @@ export default function Header({
             aria-label="Account menu"
             onClick={() => setMenuOpen((o) => !o)}
           >
-            👤
+            <IconUser />
           </button>
           {menuOpen && (
             <>
@@ -129,7 +130,7 @@ export default function Header({
 
         <div className="header-center">
           <button className="add-btn gen-cta" onClick={() => setShowGen(true)} disabled={generating}>
-            {generating ? 'Generating…' : '✨ Generate'}
+            {generating ? 'Generating…' : (<><IconSparkles /> <span className="btn-label">Generate</span></>)}
           </button>
           <button
             type="button"
@@ -137,7 +138,7 @@ export default function Header({
             title={keyPresent ? `${providerLabel} key set — click to change` : `Set ${providerLabel} API key`}
             onClick={openKeyFlow}
           >
-            {keyPresent ? '🔑' : '🔓'}
+            {keyPresent ? <IconKey /> : <IconUnlock />}
           </button>
         </div>
 
@@ -153,7 +154,7 @@ export default function Header({
           </div>
 
           <button className="theme-toggle" onClick={onToggleTheme} title="Toggle theme">
-            {theme === 'light' ? '🌙' : '☀️'}
+            {theme === 'light' ? <IconMoon /> : <IconSun />}
           </button>
         </div>
       </header>

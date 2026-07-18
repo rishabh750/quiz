@@ -1,3 +1,5 @@
+import { IconHelp, IconFileText, IconRotateCcw, IconTrash, IconArchive } from '../icons.jsx'
+
 export default function Sidebar({
   courses,
   active,
@@ -30,21 +32,21 @@ export default function Sidebar({
                   title={showingNotes ? 'Show questions' : 'Show notes'}
                   onClick={() => onToggleView(c)}
                 >
-                  {showingNotes ? '❓' : '📝'}
+                  {showingNotes ? <IconHelp /> : <IconFileText />}
                 </button>
                 <button
                   className="icon-btn reset-btn"
                   title={'Reset attempts for ' + c}
                   onClick={() => onReset(c)}
                 >
-                  ↺
+                  <IconRotateCcw />
                 </button>
                 <button
                   className="icon-btn delete-btn"
                   title={'Delete ' + c + ' (move to archive)'}
                   onClick={() => onArchive(c)}
                 >
-                  🗑
+                  <IconTrash />
                 </button>
               </li>
             )
@@ -53,7 +55,7 @@ export default function Sidebar({
       </nav>
 
       <button className="archive-btn" onClick={onOpenArchive} title="View archived courses">
-        🗄 Archive
+        <IconArchive /> Archive
       </button>
     </aside>
   )

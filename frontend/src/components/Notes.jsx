@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { marked } from 'marked'
 import { regenerateNotes, regenerateSection } from '../generate.js'
 import { cred, hasKey, providerLabel } from '../session.js'
+import { IconRefresh } from '../icons.jsx'
 
 function splitSections(md) {
   const lines = String(md || '').split('\n')
@@ -37,7 +38,7 @@ export default function Notes({ notes, course, questions, onRegenerated }) {
   const run = async (label, fn) => {
     if (busy) return
     if (!hasKey()) {
-      setError(`Set your ${providerLabel()} API key first (🔑 in the top bar).`)
+      setError(`Set your ${providerLabel()} API key first (use the key button in the top bar).`)
       return
     }
     setError(null)
@@ -71,7 +72,7 @@ export default function Notes({ notes, course, questions, onRegenerated }) {
     <div className="notes-view">
       <div className="notes-toolbar">
         <button className="add-btn" onClick={refreshAll} disabled={!!busy}>
-          {busy === 'all' ? 'Regenerating…' : '🔄 Refresh all notes'}
+          {busy === 'all' ? 'Regenerating…' : (<><IconRefresh /> Refresh all notes</>)}
         </button>
         {error && <span className="notes-error">{error}</span>}
       </div>
@@ -96,7 +97,7 @@ export default function Notes({ notes, course, questions, onRegenerated }) {
                   disabled={!!busy}
                   onClick={() => refreshSection(s.title)}
                 >
-                  {busy === s.title ? '…' : '🔄'}
+                  {busy === s.title ? '…' : <IconRefresh />}
                 </button>
               </div>
               <article

@@ -214,7 +214,7 @@ export default function App() {
         <section className="content">
           {!active ? (
             <p className="muted">
-              No courses yet. Tap <strong>✨ Generate</strong> to create one.
+              No courses yet. Tap <strong>Generate</strong> to create one.
             </p>
           ) : loading ? (
             <p className="muted">Loading…</p>
