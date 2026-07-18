@@ -2,7 +2,7 @@
 
 React UI + Python **FastAPI** API, deployed as **two Vercel services** (a static
 `frontend/` and a `backend/` ASGI app). Data is stored in **MongoDB** (shared across
-instances), with an in-memory fallback for local dev. Diagrams are Mermaid.
+instances); `MONGODB_URI` is required. Diagrams are Mermaid.
 
 ## Components
 

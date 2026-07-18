@@ -1,8 +1,3 @@
-"""Parse the quiz text format into Question rows.
-
-Rows are `$$$`-delimited (preferred) or CSV. The header names the columns; a
-`section` column is optional. A row is treated as open-ended (`qa`) when the
-header has an `answer` column and no `option*` columns, otherwise MCQ."""
 from __future__ import annotations
 
 from typing import List

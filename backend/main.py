@@ -1,6 +1,3 @@
-"""FastAPI application (Vercel backend service, entrypoint `main:app`): assembles
-routers and the gateway-prefix + payload-encryption middleware + CORS. Run locally
-with `uvicorn main:app` from the backend/ directory."""
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -9,8 +6,6 @@ from config import settings
 from crypto import PayloadCipherMiddleware
 from routers import account, answers, auth, courses, generate, system
 
-# vercel.json routes /svc/api/* to this service. Strip that gateway prefix so the
-# routes below stay canonical under /api and direct/local calls keep working.
 GATEWAY_PREFIX = "/svc"
 
 
@@ -32,7 +27,6 @@ class GatewayPrefixMiddleware:
 
 app = FastAPI(title="InterviewPrep API")
 
-# Inner: decrypt requests / encrypt responses. Added first so it sits inside CORS.
 app.add_middleware(PayloadCipherMiddleware)
 
 _origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()] or ["*"]
@@ -45,7 +39,6 @@ app.add_middleware(
     expose_headers=["X-Enc"],
 )
 
-# Outermost: runs first, strips the /svc gateway prefix before anything else.
 app.add_middleware(GatewayPrefixMiddleware)
 
 for module in (system, auth, account, courses, answers, generate):

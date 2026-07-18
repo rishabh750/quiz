@@ -10,8 +10,6 @@ import { API_BASE } from './config.js'
 import { getToken } from './auth.js'
 import { prepareRequest, decryptEnvelope, decryptChunk } from './crypto.js'
 
-// Generation is always proxied through the backend (POST /api/generate), which holds
-// the account's provider key and streams the model output back encrypted.
 async function streamGenerate(prompt, cred, onProgress) {
   const { headers, body, aesKey } = await prepareRequest({ prompt, provider: cred && cred.provider })
   const token = getToken()

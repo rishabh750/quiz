@@ -1,6 +1,5 @@
 import { PROVIDERS } from './providers.js'
 
-// Account state for the signed-in user, hydrated from GET /api/me after auth.
 let state = { provider: 'gemini', hasKey: false, email: '' }
 
 export function setSession(s) {

@@ -1,19 +1,3 @@
-"""In-transit payload encryption, wire-compatible with the browser's Web Crypto
-layer (ui/src/crypto.js).
-
-Handshake: the client GETs the RSA public key (SPKI, base64). Per request it
-generates a random AES-256 key, wraps it with RSA-OAEP(SHA-256) into the
-`X-Enc-Key` header, and AES-GCM-encrypts the JSON body into an envelope
-`{iv, d}` (both base64; `d` is ciphertext||tag). The server decrypts the request
-and AES-GCM-encrypts the response with the same key, marking it `X-Enc: 1`.
-`/api/generate` streams instead: each chunk is `base64(iv || ciphertext||tag)\n`.
-
-Requests without `X-Enc-Key` pass through untouched, so the app still works over
-plain HTTP where the browser has no Web Crypto (the client falls back to plaintext).
-
-The RSA keypair is loaded from RSA_PRIVATE_KEY (PEM) when set, else generated per
-process. Generated keys differ across instances/restarts; the client re-fetches the
-public key when a decrypt fails, so single-instance POC usage is fine."""
 from __future__ import annotations
 
 import base64
@@ -30,10 +14,6 @@ KEY_HEADER = "x-enc-key"
 ENC_MARKER = b"x-enc"
 
 
-# Default transport keypair. Committed so every process/serverless instance shares
-# it (each request on Vercel can be a fresh process — a per-process key would make
-# the client's cached public key mismatch). Override with RSA_PRIVATE_KEY in prod.
-# It only obfuscates payloads in the browser network tab; HTTPS is the real channel.
 _DEFAULT_PRIVATE_KEY_PEM = """-----BEGIN PRIVATE KEY-----
 MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQD+ZI+U8euiFlMl
 ZlUe+/0kh7cIX+tczp2srnNuOiO+/xK3IvWs578nzHq8zNCrE4DvqKsDQ9nOVynL
@@ -70,7 +50,6 @@ def _load_key():
     try:
         return serialization.load_pem_private_key(pem.encode("utf-8"), password=None)
     except Exception:
-        # last resort — ephemeral key (works only within a single process)
         return rsa.generate_private_key(public_exponent=65537, key_size=2048)
 
 
@@ -111,7 +90,6 @@ def encrypt_chunk(key: bytes, text: str) -> bytes:
     return base64.b64encode(iv + ct) + b"\n"
 
 
-# --- ASGI middleware -------------------------------------------------------
 
 async def _read_body(receive) -> bytes:
     body = b""
@@ -124,9 +102,6 @@ async def _read_body(receive) -> bytes:
 
 
 def _replay_receive(body: bytes, original_receive):
-    """Serve the decrypted body once, then defer to the real receive channel so
-    genuine client disconnects still propagate (a one-shot that returns
-    http.disconnect would make StreamingResponse abort mid-stream)."""
     sent = False
 
     async def receive():
@@ -151,7 +126,6 @@ async def _send_plain_error(send, status: int, detail: str) -> None:
 
 
 class PayloadCipherMiddleware:
-    """Decrypts encrypted requests and encrypts responses in place."""
 
     def __init__(self, app):
         self.app = app
@@ -183,7 +157,6 @@ class PayloadCipherMiddleware:
         scope["aes_key"] = aes_key
         downstream_receive = _replay_receive(plain, receive)
 
-        # Streaming endpoint encrypts its own chunks; don't buffer its response.
         if scope.get("path") == "/api/generate":
             return await self.app(scope, downstream_receive, send)
 

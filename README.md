@@ -3,8 +3,8 @@
 A study/quiz app: MCQ **and** open-ended quizzes + markdown notes, generated on
 demand via **Gemini, Claude, or ChatGPT**. React UI, Python **FastAPI** API.
 
-> Data is stored in **MongoDB** when `MONGODB_URI` is set (required on Vercel), with
-> an in-memory fallback for local dev (see [Deploy](#deploy-to-vercel)).
+> Data is stored in **MongoDB** — `MONGODB_URI` is **required** (no in-memory
+> fallback), see [Deploy](#deploy-to-vercel).
 
 ## Structure
 
@@ -27,7 +27,7 @@ Deployed as **two Vercel services** ([vercel.json](vercel.json)): a static
 
 ## Run locally
 
-**Backend** — serves on :8000 (uses `MONGODB_URI` if set, else in-memory):
+**Backend** — serves on :8000 (requires `MONGODB_URI` — export it first):
 
 ```bash
 python3 -m venv .venv && . .venv/bin/activate
@@ -56,10 +56,10 @@ Import the repo — Vercel reads [vercel.json](vercel.json) and builds the two
 services. In production the frontend calls `/svc/api/*` (the default API base), the
 gateway forwards it to the backend, so there's no CORS.
 
-**Persistence:** set **`MONGODB_URI`** so accounts, courses, and answers live in a
-shared database (required on Vercel — serverless runs multiple instances). Vercel's
-MongoDB integration injects this env var automatically. Without it the backend uses
-an in-memory store (fine for local dev; data is lost on restart).
+**Persistence:** **`MONGODB_URI`** is **required** — the backend won't start without
+it (no in-memory fallback). Accounts, courses, and answers live in the shared
+database, so every serverless instance sees the same data. Vercel's MongoDB
+integration injects this env var automatically; set it yourself for local dev.
 
 Other backend env (all optional, have defaults — see [.env.example](.env.example)):
 `JWT_SECRET`, `RSA_PRIVATE_KEY`, `CORS_ORIGINS`.
@@ -81,8 +81,8 @@ Notes:
   context** (HTTPS or `http://localhost`); over plain remote HTTP the client
   transparently falls back to plaintext.
 - **Sessions:** JWT (HS256). **Passwords:** BCrypt.
-- Persistence is MongoDB (or in-memory locally); the app does no app-level at-rest
-  encryption — rely on your database's access controls and encryption at rest.
+- Persistence is MongoDB; the app does no app-level at-rest encryption — rely on
+  your database's access controls and encryption at rest.
 - Provider API keys stay **server-side**; generation is proxied so the key never
   reaches the browser.
 

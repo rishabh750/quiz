@@ -1,5 +1,3 @@
-// Flat line icons (1em, currentColor) so they inherit the theme's colors and the
-// button's font-size. Geometry is standard Lucide-style.
 const base = {
   xmlns: 'http://www.w3.org/2000/svg',
   viewBox: '0 0 24 24',

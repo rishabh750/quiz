@@ -1,6 +1,3 @@
-"""Environment-driven settings. Everything is optional — the app runs with zero
-config (in-memory store; stable built-in defaults for the JWT secret and RSA
-transport keypair, overridable via env)."""
 import os
 
 
@@ -11,16 +8,12 @@ def _env(name: str, default: str = "") -> str:
 
 class Settings:
     def __init__(self) -> None:
-        # Auth / crypto. Unset -> stable built-in defaults (see security.py /
-        # crypto.py). Override in production.
         self.jwt_secret = _env("JWT_SECRET")
         self.jwt_expire_minutes = int(_env("JWT_EXPIRE_MINUTES", "10080"))
-        self.rsa_private_key_pem = _env("RSA_PRIVATE_KEY")  # PEM, optional
+        self.rsa_private_key_pem = _env("RSA_PRIVATE_KEY")
 
         self.cors_origins = _env("CORS_ORIGINS", "*")
 
-        # Persistent store. When set, data is shared across all instances; when
-        # empty, the app uses an in-memory store (local dev / tests).
         self.mongodb_uri = _env("MONGODB_URI")
 
 

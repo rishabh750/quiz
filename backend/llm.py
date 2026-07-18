@@ -1,5 +1,3 @@
-"""Server-side streaming proxy to the LLM providers. The account's API key stays
-on the server and is never sent to the browser."""
 from __future__ import annotations
 
 import json

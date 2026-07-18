@@ -1,5 +1,4 @@
 :root {
-  /* Dark is the default theme (see :root[data-theme='light'] for the light set). */
   --bg: #0b0c0e;
   --surface: #16181c;
   --surface-2: #1e2127;
@@ -47,7 +46,8 @@ body {
 .app {
   display: grid;
   grid-template-columns: 264px 1fr;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 
 .sidebar {
@@ -150,7 +150,7 @@ body {
 .btn-danger:hover:not(:disabled) { border-color: var(--bad); background: var(--bad-soft); }
 .btn-danger:disabled { opacity: 0.5; cursor: default; }
 
-.main { display: flex; flex-direction: column; min-width: 0; }
+.main { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow-y: auto; }
 .header {
   display: flex;
   align-items: center;
@@ -342,7 +342,6 @@ select.topic-input { cursor: pointer; }
   font-weight: 600;
   cursor: pointer;
 }
-/* Icons scale with the button's font-size and inherit its color. */
 button svg { flex: none; }
 .gen-btn, .btn-danger { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
 .chevron { display: inline-flex; align-items: center; }
@@ -550,7 +549,8 @@ code {
 }
 .nav-backdrop { display: none; }
 @media (max-width: 760px) {
-  .app { grid-template-columns: 1fr; }
+  .app { grid-template-columns: 1fr; height: auto; overflow: visible; }
+  .main { overflow: visible; }
   .nav-toggle { display: inline-flex; align-items: center; justify-content: center; }
   .sidebar {
     position: fixed;
@@ -587,7 +587,6 @@ code {
   .genbar { padding: 8px 12px; }
 }
 
-/* Keep long words, tables and code from forcing horizontal page scroll. */
 .q-text, .notes, .qa-answer { overflow-wrap: anywhere; }
 .notes table { display: block; max-width: 100%; overflow-x: auto; }
 

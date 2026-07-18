@@ -1,9 +1,3 @@
-"""Password hashing (BCrypt) and JWT sessions (HS256).
-
-The JWT secret comes from JWT_SECRET when set, otherwise a fixed default is used so
-tokens verify across processes/instances (on Vercel each request can be a fresh
-process; a random per-process secret would reject tokens issued elsewhere). Set
-JWT_SECRET in production."""
 from __future__ import annotations
 
 import time

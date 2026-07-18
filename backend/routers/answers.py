@@ -9,7 +9,6 @@ from store import Answer, Course, User, store
 router = APIRouter(prefix="/api")
 
 
-# Field names mirror the JSON wire keys (camelCase) the frontend sends.
 class AnswerIn(BaseModel):
     questionNumber: Any
     candidateAnswer: Any

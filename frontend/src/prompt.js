@@ -38,11 +38,11 @@ export function buildNotesPrompt({ topics, questions = [] }) {
         .join('\n')}`
     : ''
 
-  return `Write high-quality, interview-focused Markdown study notes about "${subject}".${grounding}
+  return `Write interview-focused Markdown study notes about "${subject}".${grounding}
 
-Structure: H1 title + a 2-sentence intro. H2 sections grouping related concepts. Explain each concept in clear prose (the how and why), bold key terms, give concrete examples with language-tagged code blocks where relevant, use tables to compare, and "> Note:" callouts for gotchas/best-practices. End with a "Quick reference" cheat-sheet and a "Glossary".
+Structure: H1 title + 2-sentence intro; H2 sections grouping related concepts; concise prose (how and why) with bold key terms, language-tagged code examples where relevant, comparison tables, and "> Note:" callouts for gotchas; end with a "Quick reference" cheat-sheet and a "Glossary". No filler.
 
-Be accurate, well-structured, and concise — no filler. Output ONLY the notes, wrapped in a single \`\`\`markdown code block, and nothing else.`
+Output ONLY the notes, wrapped in a single \`\`\`markdown code block, and nothing else.`
 }
 
 export function buildSectionNotesPrompt({ topics, section, questions = [] }) {
@@ -52,9 +52,9 @@ export function buildSectionNotesPrompt({ topics, section, questions = [] }) {
         .map((q, i) => `${i + 1}. ${q.question}`)
         .join('\n')}`
     : ''
-  return `Write ONE focused section of interview-prep Markdown study notes about "${subject}", covering the sub-topic "${section}".${grounding}
+  return `Write ONE section of interview-prep Markdown notes about "${subject}", covering "${section}".${grounding}
 
-Begin with a level-2 heading exactly: "## ${section}". Then clear prose (the how and why), bold key terms, concrete examples with language-tagged code blocks where relevant, tables to compare, and "> Note:" callouts for gotchas. Be accurate and concise. Output ONLY that section, wrapped in a single \`\`\`markdown code block.`
+Begin with a level-2 heading exactly: "## ${section}". Then concise prose (how and why) with bold key terms, language-tagged code examples where relevant, comparison tables, and "> Note:" callouts for gotchas. Output ONLY that section, wrapped in a single \`\`\`markdown code block.`
 }
 
 export function courseSlug({ company = '', position = '', round = '', topics = '' }) {
@@ -74,27 +74,22 @@ export function buildPrompt(opts) {
   const n = Math.max(1, Math.floor(Number(count) || 100))
 
   const topicFocus = tags.length
-    ? ` Concentrate specifically on these topics: ${tags.join(', ')} — every question must target them as they apply to this exact role and round, not in isolation.`
+    ? ` Focus on: ${tags.join(', ')} (as they apply to this role and round).`
     : ''
-
-  const focus = `a candidate interviewing at ${company} for the ${position} role — specifically the "${round}" interview round. Target EXACTLY what ${company}'s ${round} round for a ${position} actually asks: the real topics, question styles, formats, and difficulty this company and round are known for. Be concrete and ${company}/${round}-specific, never generic; mirror ${company}'s real interview process.${topicFocus}`
+  const focus = `${company} ${position} — "${round}" round. Match exactly what ${company}'s ${round} round for a ${position} asks (real topics, question styles, difficulty); be ${company}/${round}-specific, never generic.${topicFocus}`
 
   const quizSpec = mcq
-    ? `${slug}.txt — multiple-choice quiz, using "$$$" (three dollar signs) as the field delimiter (NOT commas):
-First line, verbatim: ${QUIZ_HEADER}
-Then exactly ${n} rows. Fields per row, separated by $$$: section (short sub-theme used to group questions), question number (1..${n}, no gaps), question, option 1, option 2, option 3, option 4, correct option number (1-4).
-Do not wrap fields in quotes and do not escape anything — since $$$ is the delimiter, commas/quotes inside text are fine as-is. Exactly 8 fields per line, no blank lines, no commentary.`
-    : `${slug}.txt — open-ended (non-MCQ) interview questions, using "$$$" (three dollar signs) as the field delimiter (NOT commas):
-First line, verbatim: ${QA_HEADER}
-Then exactly ${n} rows. Fields per row, separated by $$$: section (short sub-theme used to group questions), question number (1..${n}, no gaps), question (an open-ended interview question — no options), answer (a concise but complete model answer a strong candidate would give).
-Do not include any options or a correct-option number. Do not wrap fields in quotes and do not escape anything. Exactly 4 fields per line, no blank lines, no commentary.`
+    ? `${slug}.txt — MCQ quiz. Delimiter: "$$$" (not commas).
+Line 1 verbatim: ${QUIZ_HEADER}
+Then exactly ${n} rows, fields in order: section (short sub-theme), question number (1..${n}, no gaps), question, option 1, option 2, option 3, option 4, correct option number (1-4). 8 fields/line. No quotes, no escaping, no blank lines, no commentary.`
+    : `${slug}.txt — open-ended questions. Delimiter: "$$$" (not commas).
+Line 1 verbatim: ${QA_HEADER}
+Then exactly ${n} rows, fields in order: section (short sub-theme), question number (1..${n}, no gaps), question (open-ended, no options), answer (concise but complete). 4 fields/line. No quotes, no escaping, no blank lines, no commentary.`
 
-  return `Generate interview-prep study material for ${focus} Difficulty level: ${difficulty.toUpperCase()} — calibrate question hardness accordingly.
-
+  return `Interview-prep material for ${focus} Difficulty: ${difficulty.toUpperCase()}.
 Output EXACTLY two fenced code blocks, each preceded by a line with its filename, and nothing else.
 
 ${quizSpec}
 
-${slug}.md — Markdown notes (interview-focused, ${difficulty} level, enough to answer every quiz question):
-H1 title + 2-sentence intro. H2 sections matching the quiz sections. Explain key concepts in prose (the how and why), bold key terms, give concrete examples with language-tagged code blocks where relevant, use tables to compare, and "> Note:" callouts for gotchas/best-practices. End with a "Quick reference" cheat-sheet and a "Glossary". Be accurate and concise; no filler.`
+${slug}.md — interview-focused Markdown notes (${difficulty} level) covering everything needed to answer every quiz question: H1 title + 2-sentence intro; H2 sections matching the quiz sections; concise prose (how and why) with bold key terms, language-tagged code examples where relevant, comparison tables, and "> Note:" callouts for gotchas; end with a "Quick reference" cheat-sheet and a "Glossary". No filler.`
 }
