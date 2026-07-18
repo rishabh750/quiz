@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { login, register } from '../auth.js'
-import { openExternal } from '../openExternal.js'
 import { PROVIDERS, PROVIDER_IDS } from '../providers.js'
 
 export default function AuthModal({ onAuthed }) {
@@ -91,7 +90,7 @@ export default function AuthModal({ onAuthed }) {
                       className={'seg' + (p === provider ? ' active' : '')}
                       onClick={() => {
                         setProvider(p)
-                        openExternal(PROVIDERS[p].keyUrl)
+                        window.open(PROVIDERS[p].keyUrl, '_blank', 'noopener')
                       }}
                     >
                       {PROVIDERS[p].label}

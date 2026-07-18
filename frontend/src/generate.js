@@ -70,7 +70,7 @@ export async function regenerateNotes(params, cred, onProgress) {
   return notes
 }
 
-export function extractNotes(text) {
+function extractNotes(text) {
   const m = text.match(/```[^\n]*\n([\s\S]*?)```/)
   return (m ? m[1] : text).trim()
 }
@@ -86,7 +86,7 @@ export async function generateCourse(params, cred, onProgress) {
   return files
 }
 
-export function parseGenerated(text) {
+function parseGenerated(text) {
   const blocks = []
   const re = /```[^\n]*\n([\s\S]*?)```/g
   let m

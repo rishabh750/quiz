@@ -1,6 +1,5 @@
 import { useRef, useState } from 'react'
-import { generateCourse } from '../gemini.js'
-import { openExternal } from '../openExternal.js'
+import { generateCourse } from '../generate.js'
 import { PROVIDERS } from '../providers.js'
 import { updateAccount } from '../auth.js'
 import { cred, hasKey, setSession, currentEmail } from '../session.js'
@@ -54,7 +53,7 @@ export default function Header({
 
   const openKeyFlow = () => {
     setMenuOpen(false)
-    openExternal(PROVIDERS[provider].keyUrl)
+    window.open(PROVIDERS[provider].keyUrl, '_blank', 'noopener')
     setShowProfile(true)
   }
 

@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { PROVIDERS, PROVIDER_IDS } from '../providers.js'
-import { openExternal } from '../openExternal.js'
 
 export default function ProfileModal({ email, initialProvider, keyPresent, onSave, onClose }) {
   const [provider, setProvider] = useState(initialProvider)
@@ -12,7 +11,7 @@ export default function ProfileModal({ email, initialProvider, keyPresent, onSav
   const chooseProvider = (p) => {
     setProvider(p)
     setSaved(false)
-    openExternal(PROVIDERS[p].keyUrl)
+    window.open(PROVIDERS[p].keyUrl, '_blank', 'noopener')
   }
 
   const save = async () => {

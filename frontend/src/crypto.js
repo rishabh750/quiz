@@ -2,8 +2,6 @@ import { API_BASE } from './config.js'
 
 const subtle = typeof crypto !== 'undefined' && crypto.subtle ? crypto.subtle : null
 
-export const cryptoAvailable = !!subtle
-
 let warned = false
 function warnOnce() {
   if (!warned) {

@@ -12,7 +12,7 @@ graph TB
     V["Views<br/>AuthModal · Header · Notes · Quiz"]
     API["api.js (REST + JWT)"]
     CR["crypto.js<br/>RSA-OAEP + AES-GCM"]
-    LLM["gemini.js (stream client)"]
+    LLM["generate.js<br/>(streaming client, all providers)"]
     V --> API --> CR
     V --> LLM --> CR
   end

@@ -11,7 +11,7 @@ export function currentEmail() {
   return state.email
 }
 
-export function currentProvider() {
+function currentProvider() {
   return state.provider
 }
 

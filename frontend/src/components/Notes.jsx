@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { marked } from 'marked'
-import { regenerateNotes, regenerateSection } from '../gemini.js'
+import { regenerateNotes, regenerateSection } from '../generate.js'
 import { cred, hasKey, providerLabel } from '../session.js'
 
 function splitSections(md) {

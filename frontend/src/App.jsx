@@ -21,7 +21,7 @@ import { isAuthed, fetchMe, logout } from './auth.js'
 import { setSession } from './session.js'
 
 export default function App() {
-  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light')
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark')
   const [courses, setCourses] = useState([])
   const [active, setActive] = useState(null)
   const [view, setView] = useState('quiz')
