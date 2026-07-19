@@ -10,7 +10,6 @@ class Settings:
     def __init__(self) -> None:
         self.jwt_secret = _env("JWT_SECRET")
         self.jwt_expire_minutes = int(_env("JWT_EXPIRE_MINUTES", "10080"))
-        self.rsa_private_key_pem = _env("RSA_PRIVATE_KEY")
 
         self.cors_origins = _env("CORS_ORIGINS", "*")
 

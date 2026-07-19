@@ -12,7 +12,7 @@ demand via **Gemini, Claude, or ChatGPT**. React UI, Python **FastAPI** API.
 quiz/
 ├── backend/          FastAPI backend service (entrypoint main:app)
 │   ├── main.py       builds the ASGI app + middleware
-│   ├── config.py store.py security.py crypto.py llm.py quiz.py
+│   ├── config.py store.py security.py llm.py quiz.py
 │   ├── routers/      system · auth · account · courses · answers · generate
 │   └── requirements.txt
 ├── frontend/         React + Vite frontend (static build)
@@ -62,24 +62,21 @@ database, so every serverless instance sees the same data. Vercel's MongoDB
 integration injects this env var automatically; set it yourself for local dev.
 
 Other backend env (all optional, have defaults — see [.env.example](.env.example)):
-`JWT_SECRET`, `RSA_PRIVATE_KEY`, `CORS_ORIGINS`.
+`JWT_SECRET`, `CORS_ORIGINS`.
 
 Notes:
-- The JWT secret, RSA keypair, and user IDs use stable built-in defaults, so auth
-  and encryption work across instances out of the box. **Override `JWT_SECRET` /
-  `RSA_PRIVATE_KEY`** with your own values in production.
+- The JWT secret and user IDs use stable built-in defaults, so auth works across
+  instances out of the box. **Override `JWT_SECRET`** with your own value in
+  production.
 - There is **no seeded account** — register one on first launch.
 - **Generation timeout** — `/api/generate` streams from the LLM; `vercel.json`
   sets `maxDuration` to 60s. Long generations may need a higher limit (plan-gated).
 
 ## Security model
 
-- **In transit:** every `/api` request/response body is encrypted end-to-end (the
-  server publishes an RSA public key; the client wraps a per-request AES-256 key
-  with RSA-OAEP-SHA256 and encrypts the body with AES-GCM), so payloads —
-  including register — are ciphertext in the browser network tab. Needs a **secure
-  context** (HTTPS or `http://localhost`); over plain remote HTTP the client
-  transparently falls back to plaintext.
+- **In transit:** confidentiality is provided by **HTTPS/TLS**. Vercel serves both
+  services over TLS by default, so every `/api` request/response — including
+  register and provider keys — is encrypted on the wire.
 - **Sessions:** JWT (HS256). **Passwords:** BCrypt.
 - Persistence is MongoDB; the app does no app-level at-rest encryption — rely on
   your database's access controls and encryption at rest.

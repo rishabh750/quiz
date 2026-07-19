@@ -8,17 +8,15 @@ import {
 } from './prompt.js'
 import { API_BASE } from './config.js'
 import { getToken } from './auth.js'
-import { prepareRequest, decryptEnvelope, decryptChunk } from './crypto.js'
 
 async function streamGenerate(prompt, cred, onProgress) {
-  const { headers, body, aesKey } = await prepareRequest({ prompt, provider: cred && cred.provider })
+  const headers = { 'Content-Type': 'application/json' }
   const token = getToken()
   if (token) headers.Authorization = 'Bearer ' + token
+  const body = JSON.stringify({ prompt, provider: cred && cred.provider })
   const res = await fetch(API_BASE + '/api/generate', { method: 'POST', headers, body })
-  const encrypted = res.headers.get('X-Enc') === '1'
   if (!res.ok) {
-    let t = await res.text()
-    if (encrypted) t = await decryptEnvelope(aesKey, t)
+    const t = await res.text()
     let msg = 'Generation failed'
     try {
       const data = JSON.parse(t)
@@ -30,25 +28,12 @@ async function streamGenerate(prompt, cred, onProgress) {
   }
   const reader = res.body.getReader()
   const decoder = new TextDecoder()
-  let buf = ''
   let text = ''
   while (true) {
     const { done, value } = await reader.read()
     if (done) break
-    if (encrypted) {
-      buf += decoder.decode(value, { stream: true })
-      let nl
-      while ((nl = buf.indexOf('\n')) >= 0) {
-        const line = buf.slice(0, nl).trim()
-        buf = buf.slice(nl + 1)
-        if (!line) continue
-        text += await decryptChunk(aesKey, line)
-        if (onProgress) onProgress(text.length)
-      }
-    } else {
-      text += decoder.decode(value, { stream: true })
-      if (onProgress) onProgress(text.length)
-    }
+    text += decoder.decode(value, { stream: true })
+    if (onProgress) onProgress(text.length)
   }
   if (text.startsWith('[ERROR] ')) throw new Error(text.slice(8).trim())
   return text

@@ -1,5 +1,4 @@
 import { API_BASE } from './config.js'
-import { prepareRequest, decryptEnvelope, resetPublicKey } from './crypto.js'
 
 const TOKEN_KEY = 'ip_token'
 
@@ -20,26 +19,18 @@ export function logout() {
   setToken('')
 }
 
-async function send(path, opts, hasBody) {
-  const { headers: encHeaders, body, aesKey } = await prepareRequest(hasBody ? opts.json : undefined)
-  const headers = { ...encHeaders }
+export async function apiFetch(path, opts = {}) {
+  const hasBody = opts.json !== undefined
+  const headers = {}
+  let body
+  if (hasBody) {
+    headers['Content-Type'] = 'application/json'
+    body = JSON.stringify(opts.json)
+  }
   const token = getToken()
   if (token) headers.Authorization = 'Bearer ' + token
   const res = await fetch(API_BASE + path, { method: opts.method || 'GET', headers, body })
-  const encrypted = res.headers.get('X-Enc') === '1'
-  let text = await res.text()
-  if (encrypted) text = await decryptEnvelope(aesKey, text)
-  return { res, text, encrypted }
-}
-
-export async function apiFetch(path, opts = {}) {
-  const hasBody = opts.json !== undefined
-  let attempt = await send(path, opts, hasBody)
-  if (attempt.res.status === 400 && !attempt.encrypted && attempt.text.includes('encryption key')) {
-    resetPublicKey()
-    attempt = await send(path, opts, hasBody)
-  }
-  const { res, text } = attempt
+  const text = await res.text()
   if (!res.ok) {
     let msg = 'Request failed (' + res.status + ')'
     try {

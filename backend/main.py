@@ -3,7 +3,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from config import settings
-from crypto import PayloadCipherMiddleware
 from routers import account, answers, auth, courses, generate, system
 
 GATEWAY_PREFIX = "/svc"
@@ -27,8 +26,6 @@ class GatewayPrefixMiddleware:
 
 app = FastAPI(title="InterviewPrep API")
 
-app.add_middleware(PayloadCipherMiddleware)
-
 _origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()] or ["*"]
 app.add_middleware(
     CORSMiddleware,
@@ -36,7 +33,6 @@ app.add_middleware(
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["X-Enc"],
 )
 
 app.add_middleware(GatewayPrefixMiddleware)
