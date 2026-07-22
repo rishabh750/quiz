@@ -4,7 +4,8 @@ A study/quiz app: MCQ **and** open-ended quizzes + markdown notes, generated on
 demand via **Gemini, Claude, or ChatGPT**. React UI, Python **FastAPI** API.
 
 > Data is stored in **MongoDB** — `MONGODB_URI` is **required** (no in-memory
-> fallback), see [Deploy](#deploy-to-vercel).
+> fallback), see [Deploy](#deploy-to-vercel). Credentials come from the private
+> [`secrets`](#credentials-the-secrets-submodule) submodule.
 
 ## Structure
 
@@ -14,6 +15,7 @@ quiz/
 │   ├── main.py       builds the ASGI app + middleware
 │   ├── config.py store.py security.py llm.py quiz.py
 │   ├── routers/      system · auth · account · courses · answers · generate
+│   ├── secrets/      PRIVATE submodule: dev.env + production.env credentials
 │   └── requirements.txt
 ├── frontend/         React + Vite frontend (static build)
 │   └── src/  index.html  package.json  vite.config.js
@@ -27,12 +29,14 @@ Deployed as **two Vercel services** ([vercel.json](vercel.json)): a static
 
 ## Run locally
 
-**Backend** — serves on :8000 (requires `MONGODB_URI` — export it first):
+**Backend** — serves on :8000. Credentials come from the `secrets` submodule
+(fetch it first, see below):
 
 ```bash
+git submodule update --init --recursive          # pull backend/secrets/*.env
 python3 -m venv .venv && . .venv/bin/activate
 pip install -r backend/requirements.txt
-cd backend && uvicorn main:app --reload --port 8000
+cd backend && uvicorn main:app --reload --port 8000    # loads secrets/dev.env
 ```
 
 **Frontend** (dev, hot reload) — point it at the backend:
@@ -58,11 +62,33 @@ gateway forwards it to the backend, so there's no CORS.
 
 **Persistence:** **`MONGODB_URI`** is **required** — the backend won't start without
 it (no in-memory fallback). Accounts, courses, and answers live in the shared
-database, so every serverless instance sees the same data. Vercel's MongoDB
-integration injects this env var automatically; set it yourself for local dev.
+database, so every serverless instance sees the same data.
 
 Other backend env (all optional, have defaults — see [.env.example](.env.example)):
 `JWT_SECRET`, `CORS_ORIGINS`.
+
+> **Vercel + submodule:** Vercel checks out submodules during the build if the
+> deploying account can access the private `secrets` repo (same GitHub owner works;
+> otherwise add a deploy key). If the submodule can't be fetched, `production.env`
+> is absent and the backend falls back to Vercel env vars — so you can also set
+> `MONGODB_URI` / `JWT_SECRET` directly in the Vercel dashboard as a backup.
+
+### Credentials: the `secrets` submodule
+
+All credentials — **both** local/dev and production — live in a **private**
+submodule at `backend/secrets/`, never in this public repo:
+
+| File | Used when |
+|------|-----------|
+| `backend/secrets/dev.env`        | `APP_ENV` unset or `dev` (local) |
+| `backend/secrets/production.env` | `APP_ENV=production` or Vercel's `VERCEL_ENV=production` |
+
+[config.py](backend/config.py) loads the file for the current environment and its
+values **override** the process environment. Fetch it after cloning:
+
+```bash
+git submodule update --init --recursive
+```
 
 Notes:
 - The JWT secret and user IDs use stable built-in defaults, so auth works across

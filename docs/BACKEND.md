@@ -24,7 +24,8 @@ Sessions use **JWT** (HS256); passwords are **BCrypt**-hashed.
 | Module | Responsibility |
 |--------|----------------|
 | `main.py` | build the app (entrypoint `main:app`), middleware order (gateway-strip → CORS) |
-| `config.py` | env-driven settings |
+| `config.py` | loads the `secrets/<env>.env` file, then env-driven settings |
+| `secrets/` | **private submodule**: `dev.env` / `production.env` credentials |
 | `store.py` | data model + `MongoStore` (one document per user → embedded courses/questions/answers) |
 | `security.py` | BCrypt hashing, JWT create/verify, `current_user` dependency |
 | `llm.py` | streaming proxy to Gemini / OpenAI / Anthropic (httpx) |
@@ -52,7 +53,15 @@ cd backend && uvicorn main:app --reload --port 8000   # :8000 (register an accou
 | GET/POST/DELETE | `/answers/{name}` | list / save / reset |
 | POST | `/generate` | stream a prompt to the account's provider (text/plain chunks) |
 
-## Config (env vars — all optional)
+## Config
+
+Credentials come from the private **`secrets`** submodule. On startup `config.py`
+picks an environment and loads `backend/secrets/<env>.env`, whose values **override**
+the process environment:
+
+```
+APP_ENV set → use it;  else VERCEL_ENV==production → production;  else dev
+```
 
 | Var | Meaning |
 |-----|---------|
@@ -60,9 +69,11 @@ cd backend && uvicorn main:app --reload --port 8000   # :8000 (register an accou
 | `JWT_SECRET` | HS256 secret; **overrides** the built-in stable default (set your own in prod) |
 | `JWT_EXPIRE_MINUTES` | token lifetime (default 10080 = 7 days) |
 | `CORS_ORIGINS` | allowed origins when the UI is a separate origin (default `*`) |
+| `APP_ENV` | force which secrets file loads (`dev` / `production`) |
 
 > The JWT secret and user IDs use **stable built-in defaults**, so tokens work
 > across serverless instances with zero config. There is **no seeded account** —
 > register one. With `MONGODB_URI` set, the account and its data are shared across
 > all instances (routers mutate the `User` object and call `store.save(user)`).
-> Override `JWT_SECRET` in production.
+> Fetch the submodule with `git submodule update --init --recursive`; if it's
+> absent the loader is a no-op and plain env vars are used.
